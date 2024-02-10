@@ -1,5 +1,31 @@
 #include <iostream>
+#include <cmath>
+#include <limits>
+#include <sstream>
+#include <iomanip>
 #include "utils.h"
+
+/* https://stackoverflow.com/questions/41294368/truncating-a-double-floating-point-at-a-certain-number-of-digits
+*/
+std::string truncate_to_string(double n, int precision) {
+    std::stringstream ss;
+    bool negative(n < 0);
+    if (negative)
+        n *= -1;
+    double remainder((double) ((int)floor((n - floor(n)) * precision) % precision));
+    if (negative && (floor(n) != 0 || remainder))
+        ss << "-";
+    ss << std::setprecision(std::numeric_limits<double>::max_digits10 + __builtin_ctz(precision))
+       << floor(n);
+    if (remainder) {
+        ss << ".";
+        for (int i(0); i < log10(precision) - (log10(remainder) + 1); ++i) {
+            ss << "0";
+        }
+        ss << remainder;
+    }
+    return ss.str();
+}
 
 LTimer::LTimer()
 :   m_start_ticks(0), m_paused_ticks(0), m_paused(false), m_started(false) {}
@@ -53,6 +79,16 @@ Uint32 LTimer::get_ticks() const {
 LTexture::LTexture(SDL_Renderer* renderer)
 :   m_texture(nullptr),
     m_renderer(renderer),
+    m_font(nullptr),
+    m_width(0),
+    m_height(0)
+{}
+
+LTexture::LTexture(SDL_Renderer* renderer, SDL_Color color, TTF_Font* font)
+:   m_texture(nullptr),
+    m_renderer(renderer),
+    m_color(color),
+    m_font(font),
     m_width(0),
     m_height(0)
 {}
@@ -98,6 +134,23 @@ bool LTexture::load_from_rendered_text(std::string text, SDL_Color color, TTF_Fo
     return m_texture != nullptr;
 }
 
+bool LTexture::load_from_rendered_text(std::string text) {
+    free();
+
+    SDL_Surface* text_surface(TTF_RenderText_Blended_Wrapped(m_font, text.c_str(), m_color, 500));
+    if (text_surface) {
+        m_texture = SDL_CreateTextureFromSurface(m_renderer, text_surface);
+        if (m_texture) {
+            m_width = text_surface->w;
+            m_height = text_surface->h;
+        }
+
+        SDL_FreeSurface(text_surface);
+    }
+
+    return m_texture != nullptr;
+}
+
 void LTexture::free() {
     if (m_texture) {
         SDL_DestroyTexture(m_texture);
@@ -111,3 +164,27 @@ void LTexture::render(int x, int y) {
     SDL_RenderCopy(m_renderer, m_texture, nullptr, &render_quad);
 }
 
+void TextManager::add_texture(SDL_Color color, TTF_Font* font, int x, int y) {}
+
+void TextManager::render_all() {}
+
+void TextManager::free_all() {
+    for (auto t : textures) {
+        t->free();
+    }
+}
+
+void VTextLayout::add_texture(SDL_Color color, TTF_Font* font) {
+    textures.push_back(new LTexture(m_renderer, color, font));
+}
+
+bool VTextLayout::load_text_and_render(size_t row, std::string text) {
+    if (!textures[row - 1]->load_from_rendered_text(text))
+        return false;
+    int y_offset(0);
+    for (size_t i(0); i < row - 1; ++i) {
+        y_offset += textures[i]->get_height();
+    }
+    textures[row - 1]->render(m_x, m_y + y_offset);
+    return true;
+}

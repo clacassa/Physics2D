@@ -8,7 +8,6 @@
 #include <chrono>
 #include "render.h"
 #include "rigid_body.h"
-#include "ODE_solver.h"
 #include "collision.h"
 #include "link.h"
 
@@ -20,36 +19,58 @@ public:
     SystemState();
     virtual ~SystemState();
 
-    void initialize(EulerSolver* solver);
     void process(double dt, int steps, bool perft = false);
     void apply_forces();
     void toggle_gravity();
 
-    void add_body(Vector2 pos, Vector2 vel = {0, 0}, double mass = 1.0, double radius = 0.1);
+    void add_ball(Vector2 pos, double mass, double radius, bool movable = true,
+            Vector2 vel = {0, 0});
+    void add_rectangle(Vector2 pos, double mass, double width, double height, bool movable = true,
+            Vector2 vel = {0, 0});
     void add_frame(Vector2 pos);
     void add_link(Vector2 p1, Vector2 p2);
+    void move_focused_body(Vector2 delta_p);
+    void rotate_focused_body(double angle);
 
     void render(SDL_Renderer* renderer);
     
-    std::string dump_object_data() const;
+    std::string dump_data() const;
     void focus_next();
     void focus_prev();
+    void focus_on_position(Vector2 p);
 
     size_t get_body_count() const { return m_bodies.size(); };
 
+    // Custom struct to store time analytics variables
+    struct TimePerf {
+        double step_time;
+        double ode_time;
+        double collisions_time;
+        double broad_phase;
+        double narrow_phase;
+        double GJK;
+        double EPA;
+        double response_phase;
+
+        void reset();
+        void average(double steps);
+    };
+
 private:
     bool gravity;
+    bool air_friction_enabled;
     std::vector<RigidBody*> m_bodies;
     std::vector<Frame*> m_frames;
     std::array<Vector2, 3> m_force_fields;
     std::vector<Constraint*> m_constraints;
-    std::vector<FixedLink*> m_fixed_links;
 
-    EulerSolver* m_solver;
-    CollisionGrid m_grid;
+    SweepAndPrune m_SAP;
 
-    double m_dt;
+    TimePerf m_Time_Perf;
+
     double step_time;
+    double ode_time;
+    double collisions_time;
 
     size_t focus;
 };

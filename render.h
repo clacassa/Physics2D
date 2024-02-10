@@ -3,16 +3,20 @@
 
 #include <SDL2/SDL.h>
 
-constexpr unsigned SCREEN_WIDTH(1000);
-constexpr unsigned SCREEN_HEIGHT(500);
+extern unsigned SCREEN_WIDTH;
+extern unsigned SCREEN_HEIGHT;
 
-constexpr unsigned RENDER_SCALE(100);
+extern const double RENDER_SCALE;
 // Aspect ratio must be 2
-constexpr unsigned SCENE_WIDTH(SCREEN_WIDTH / RENDER_SCALE);
-constexpr unsigned SCENE_HEIGHT(SCREEN_HEIGHT / RENDER_SCALE);
+extern double SCENE_WIDTH;
+extern double SCENE_HEIGHT;
 
-void render_body_circle(SDL_Renderer* renderer, double x, double y, double radius);
+void render_point(SDL_Renderer* renderer, double x, double y);
 void render_line(SDL_Renderer* renderer, double x1, double y1, double x2, double y2);
-void render_circle(SDL_Renderer*, double x, double y, double radius);
+void render_filled_circle(SDL_Renderer* renderer, double x, double y, double radius);
+// Render circle algorithm, very fast
+void render_fill_circle_fast(SDL_Renderer*, double x, double y, double radius);
+void render_circle(SDL_Renderer* renderer, double x, double y, double radius);
+void render_rectangle(SDL_Renderer* renderer, double x, double y, double w, double h);
 
 #endif /* RENDER_H */

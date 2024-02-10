@@ -2,7 +2,22 @@
 #include <vector>
 #include "render.h"
 
-void render_body_circle(SDL_Renderer *renderer, double x, double y, double radius) {
+
+void render_point(SDL_Renderer* renderer, double x, double y) {
+    x *= RENDER_SCALE;
+    y = (SCENE_HEIGHT - y) * RENDER_SCALE;
+    SDL_RenderDrawPointF(renderer, x, y);
+}
+
+void render_line(SDL_Renderer* renderer, double x1, double y1, double x2, double y2) {
+    x1 *= RENDER_SCALE;
+    y1 = (SCENE_HEIGHT - y1) * RENDER_SCALE;
+    x2 *= RENDER_SCALE;
+    y2 = (SCENE_HEIGHT - y2) * RENDER_SCALE;
+    SDL_RenderDrawLineF(renderer, x1, y1, x2, y2);
+}
+
+void render_filled_circle(SDL_Renderer *renderer, double x, double y, double radius) {
     radius *= RENDER_SCALE;
     x *= RENDER_SCALE;
     y = (SCENE_HEIGHT - y) * RENDER_SCALE;
@@ -21,15 +36,8 @@ void render_body_circle(SDL_Renderer *renderer, double x, double y, double radiu
     }
 }
 
-void render_line(SDL_Renderer* renderer, double x1, double y1, double x2, double y2) {
-    x1 *= RENDER_SCALE;
-    y1 = (SCENE_HEIGHT - y1) * RENDER_SCALE;
-    x2 *= RENDER_SCALE;
-    y2 = (SCENE_HEIGHT - y2) * RENDER_SCALE;
-    SDL_RenderDrawLineF(renderer, x1, y1, x2, y2);
-}
 
-void render_circle(SDL_Renderer * renderer, double x_, double y_, double radius_) {
+void render_fill_circle_fast(SDL_Renderer * renderer, double x_, double y_, double radius_) {
     x_ *= RENDER_SCALE;
     y_ = (SCENE_HEIGHT - y_) * RENDER_SCALE;
     radius_ *= RENDER_SCALE;
@@ -51,7 +59,6 @@ void render_circle(SDL_Renderer * renderer, double x_, double y_, double radius_
         int32_t tx(1);
         int32_t ty(1);
         int32_t error(tx - diameter);
-
 
         while( dx >= dy )
         {
@@ -85,5 +92,54 @@ void render_circle(SDL_Renderer * renderer, double x_, double y_, double radius_
         SDL_RenderDrawPoints(renderer, points, draw_count);
         --radius;
     }
+}
+
+void render_circle(SDL_Renderer* renderer, double x, double y, double radius) {
+    x *= RENDER_SCALE;
+    y = (SCENE_HEIGHT - y) * RENDER_SCALE;
+    radius *= RENDER_SCALE;
+
+    double error(-radius);
+    double x_(radius - 0.5);
+    double y_(0.5);
+    double cx(x - 0.5);
+    double cy(y - 0.5);
+
+    while (x_ >= y_) {
+        SDL_RenderDrawPoint(renderer, (int)(cx + x_), (int)(cy + y_));
+        SDL_RenderDrawPoint(renderer, (int)(cx + y_), (int)(cy + x_));
+        if (x_ != 0) {
+            SDL_RenderDrawPoint(renderer, (int)(cx - x_), (int)(cy + y_));
+            SDL_RenderDrawPoint(renderer, (int)(cx + y_), (int)(cy - x_));
+        }
+        if (y_ != 0) {
+            SDL_RenderDrawPoint(renderer, (int)(cx + x_), (int)(cy - y_));
+            SDL_RenderDrawPoint(renderer, (int)(cx - y_), (int)(cy + x_));
+        }
+        if (x_ != 0 && y_ != 0) {
+            SDL_RenderDrawPoint(renderer, (int)(cx - x_), (int)(cy - y_));
+            SDL_RenderDrawPoint(renderer, (int)(cx - y_), (int)(cy - x_));
+        }
+
+        error += y_;
+        ++y_;
+        error += y_;
+
+        if (error >= 0) {
+            --x_;
+            error -= x_;
+            error -= x_;
+        }
+    }
+}
+
+void render_rectangle(SDL_Renderer* renderer, double x, double y, double w, double h) {
+    x *= RENDER_SCALE;
+    y = (SCENE_HEIGHT - y) * RENDER_SCALE;
+    w *= RENDER_SCALE;
+    h *= RENDER_SCALE;
+
+    SDL_FRect rect{(float)x, (float)y, (float)w, (float)h};
+    SDL_RenderDrawRectF(renderer, &rect);
 }
 

@@ -3,8 +3,8 @@ CXX = g++
 CXXFLAGS = -g -Wall -std=c++11
 INCLUDE = `pkg-config --cflags sdl2 sdl2_ttf sdl2_image`
 LDLIBS = `pkg-config --libs sdl2 sdl2_ttf sdl2_image` -mconsole
-CXXFILES = main.cc system_state.cc rigid_body.cc ODE_solver.cc collision.cc \
-		   render.cc utils.cc link.cc
+CXXFILES = main.cc system_state.cc rigid_body.cc collision.cc \
+		   scene_editor.cc render.cc utils.cc link.cc vector2.cc
 OFILES = $(CXXFILES:.cc=.o)
 
 all: $(OUT)
@@ -36,13 +36,15 @@ depend:
 #
 #
 # DO NOT DELETE THIS LINE
-main.o: main.cc system_state.h render.h rigid_body.h ODE_solver.h \
- collision.h link.h utils.h
+main.o: main.cc system_state.h render.h rigid_body.h vector2.h \
+ collision.h link.h scene_editor.h utils.h
 system_state.o: system_state.cc system_state.h render.h rigid_body.h \
- ODE_solver.h collision.h link.h
-rigid_body.o: rigid_body.cc rigid_body.h
-ODE_solver.o: ODE_solver.cc ODE_solver.h rigid_body.h
-collision.o: collision.cc collision.h rigid_body.h render.h
+ vector2.h collision.h link.h utils.h config.h
+rigid_body.o: rigid_body.cc rigid_body.h render.h vector2.h collision.h \
+ config.h
+collision.o: collision.cc collision.h rigid_body.h render.h vector2.h \
+ config.h
 render.o: render.cc render.h
 utils.o: utils.cc utils.h
-link.o: link.cc link.h rigid_body.h
+link.o: link.cc link.h rigid_body.h render.h vector2.h
+vector2.o: vector2.cc vector2.h

@@ -3,49 +3,81 @@
 
 #include <cmath>
 #include <deque>
+#include <vector>
+#include <string>
 #include "render.h"
+#include "vector2.h"
 
 #define PI 3.14159265
 
 constexpr double g(9.81);
 
-struct Vector2 {
-    double x;
-    double y;
 
-    Vector2(double x_, double y_) : x(x_), y(y_) {}
-    Vector2() : x(0.0), y(0.0) {}
-
-    double norm() const;
-    Vector2 normalized() const;
-
-    const Vector2 operator+(const Vector2& v) const;
-    Vector2& operator+=(const Vector2& v);
-    const Vector2 operator-(const Vector2& v) const;
-    Vector2& operator-=(const Vector2& v);
-    const Vector2 operator*(const double a) const;
-    const Vector2 operator/(const double a) const;
+struct AABB {
+    Vector2 min; // Bottom left corner
+    Vector2 max; // Top right corner
 };
 
-double dot2(const Vector2 a, const Vector2 b);
-// a x b 
-double cross2(const Vector2 a, const Vector2 b);
+typedef std::vector<Vector2> Vertices;
 
-
-struct RigidBody {
-    enum class Shape { Disc, Polygon };
-    // RigidBody(double v_x, double v_y, double x, double y, double m_, double I_, Shape);
-    RigidBody(double v_x, double v_y, double x, double y, double m_, double r_);
+class RigidBody {
+public:
+    RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, bool movable_, Vertices verticies);
+    RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, bool movable_);
     virtual ~RigidBody();
 
-    double energy() const;
+    void step(double dt);
+    void apply_newton_second_law();
+    void subject_to_force(const Vector2 force);
+    void subject_to_torque(const Vector2 force);
+    void reset_forces();
+    void move(const Vector2 delta_p, bool update_AABB = true);
+    void rotate(const double angle, bool update_AABB = true);
+    void velocity_impulse(const Vector2 impulse);
+    void angular_impulse(const double impulse);
+    
+    double energy(bool gravity) const;
     double k_energy() const;
     double p_energy() const;
 
-    void draw(SDL_Renderer* renderer);
+    virtual void draw(SDL_Renderer* renderer) const = 0;
     void draw_forces(SDL_Renderer* renderer) const;
+    void draw_trace(SDL_Renderer* renderer);
+    void colorize(const SDL_Color color);
+    void reset_color();
 
+    Vector2 get_a() const { return a; }
+    Vector2 get_v() const { return v; }
+    Vector2 get_p() const { return p; }
+    Vector2 get_f() const { return f; }
+    double get_omega() const { return omega; }
+    double get_mass() const { return m; }
+    double get_inv_m() const { return inv_m; }
+    double get_I() const { return I; }
+    double get_inv_I() const { return inv_I; }
+    // coefficient of restitution (COR)
+    double get_cor() const { return e; }
+    bool is_movable() const { return this->movable; }
+    std::string get_friction() const { return static_friction ? "STATIC" : "DYNAMIC"; }
+
+    bool has_vertices() const { return !m_vertices.empty(); }
+    virtual std::vector<Vector2> get_vertices() const { return m_vertices; }
+    virtual double get_radius() const { return 0.0; }
+    AABB get_AABB() const { return m_aabb; }
+
+    virtual void handle_wall_collisions() = 0;
+    virtual void update_bounding_box() = 0;
+    virtual bool contains_point(const Vector2 point) const = 0;
+
+    void set_test(const Vector2 test) { m_t = test; }
+    void set_test(const size_t test) { id = test; }
+    void set_friction_debug(const bool friction) { static_friction = friction; }
+
+protected:
     // linear, x y axis
+#ifdef VERLET
+    Vector2 p_old;
+#endif
     Vector2 a;
     Vector2 v;
     Vector2 p;
@@ -57,31 +89,73 @@ struct RigidBody {
     double torque;
 
     double m;
-    double r;
+    double inv_m;
     double I;
+    double inv_I;
+
+    /*
+     * coefficient of restitution (COR, e)   e = 0.69 for glass, 0.78 for stainless steel
+     * https://en.wikipedia.org/wiki/Coefficient_of_restitution
+     */
+    double e;
+
+    bool movable;
+
+    Vertices m_vertices;
+    AABB m_aabb;
 
     size_t max_track_length;
     std::deque<Vector2> track;
-    Shape m_shape;
+    SDL_Color color;    
+
+    Vector2 m_t;
+    size_t id;
+    bool static_friction;
 };
 
-struct Ball : public RigidBody {
-    Ball(double v_x, double v_y, double x, double y, double m_, double r_);
+
+class Ball : public RigidBody {
+public:
+    Ball(Vector2 vel, Vector2 pos, double m, double r_, bool movable = true);
     virtual ~Ball() {}
 
+    // A ball doesn't have any verticies
+    Vertices get_vertices() const override;
+    double get_radius() const override;
+    void draw(SDL_Renderer* renderer) const override;
+    void handle_wall_collisions() override;
+    void update_bounding_box() override;
+    bool contains_point(const Vector2 point) const override;
+
+private:
     double r;
 };
 
-struct Polygon : public RigidBody {
-    Polygon(double v_x, double v_y, double x, double y, double m_, double I_);
-    virtual ~Polygon() {}
+class Rectangle : public RigidBody {
+public:
+    Rectangle(Vector2 vel, Vector2 pos, double m, double w_, double h_, Vertices verticies, 
+            bool movable = true);
+    virtual ~Rectangle() {}
 
+    void draw(SDL_Renderer* renderer) const override;
+    void handle_wall_collisions() override;
+    void update_bounding_box() override;
+    bool contains_point(const Vector2 point) const override;
 
+private:
+    double w;
+    double h;
 };
 
-struct Rectangle : public Polygon {
-    Rectangle(double v_x, double v_y, double x, double y, double m_, double w_, double h_);
-    virtual ~Rectangle() {}
+class Triangle : public RigidBody { 
+// public:
+//     Triangle(Vector2 vel, Vector2 pos, double m, Vertices vertices, bool movable = true);
+//     virtual ~Triangle() {}
+
+//     void draw(SDL_Renderer* renderer) const override;
+//     void handle_wall_collisions() override;
+//     void update_bounding_box() override;
+//     bool contains_point(const Vector2 point) const override;
 };
 
 struct Frame {
