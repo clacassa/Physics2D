@@ -1,7 +1,7 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#include <SDL2/SDL.h>
+#include <SDL.h>
 #include <SDL_image.h>
 #include <SDL_ttf.h>
 #include <string>
@@ -83,7 +83,8 @@ struct TextManager {
 
 // Layout
 struct VTextLayout : TextManager {
-    VTextLayout(SDL_Renderer* renderer, int x, int y) : TextManager(renderer), m_x(x), m_y(y) {}
+    VTextLayout(SDL_Renderer* renderer, int x, int y);
+    VTextLayout(SDL_Renderer* renderer, int y);
     virtual ~VTextLayout() { free_all(); }
 
     void add_texture(SDL_Color color, TTF_Font* font);
@@ -97,6 +98,20 @@ struct VTextLayout : TextManager {
     bool load_text_and_render(size_t row, std::string text);
 
     // Top left corner of the layout
+    int m_x;
+    int m_y;
+    // Or initialized to 0 in case of a centered layout
+    bool centered;
+};
+
+struct HTextLayout : TextManager {
+    HTextLayout(SDL_Renderer* renderer, int x, int y) : TextManager(renderer), m_x(x), m_y(y) {}
+    virtual ~HTextLayout() { free_all(); }
+
+    void add_texture(SDL_Color color, TTF_Font* font);
+    bool load_text_and_render(size_t column, std::string text, int offset = 0, bool center = false);
+
+
     int m_x;
     int m_y;
 };

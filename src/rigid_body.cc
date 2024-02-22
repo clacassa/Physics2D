@@ -2,10 +2,11 @@
 #include <array>
 #include "rigid_body.h"
 #include "collision.h"
+#include "utils.h"
 #include "config.h"
 
 
-RigidBody::RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, bool movable_, 
+RigidBody::RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, bool movable_, bool enabled_, 
         Vertices vertices)
 :   
 #ifdef Verlet
@@ -22,8 +23,9 @@ RigidBody::RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, bool movabl
     inv_m(1 / m),
     I(I_),
     inv_I(1 / I),
-    e(0.78),
+    e(0.6),
     movable(movable_),
+    enabled(enabled_),
     m_vertices(vertices),
     max_track_length(1e3),
     color{255, 255, 255, 255},
@@ -31,15 +33,13 @@ RigidBody::RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, bool movabl
     static_friction(true)
 {
     if (!movable) {
-        m = INT_MAX;
-        I = INT_MAX;
         inv_m = 0;
         inv_I = 0;
         v = Vector2::zero();
     }
 }
 
-RigidBody::RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, bool movable_)
+RigidBody::RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, bool movable_, bool enabled_)
 :   
 #ifdef VERLET
     p_old(pos),
@@ -55,16 +55,15 @@ RigidBody::RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, bool movabl
     inv_m(1 / m),
     I(I_),
     inv_I(1 / I),
-    e(0.78),
+    e(0.6),
     movable(movable_),
+    enabled(enabled_),
     max_track_length(1e3),
     color{255, 255, 255, 255},
     id(0),
     static_friction(true)
 {
     if (!movable) {
-        m = INT_MAX;
-        I = INT_MAX;
         inv_m = 0;
         inv_I = 0;
         v = Vector2::zero();
@@ -76,6 +75,11 @@ RigidBody::~RigidBody() {}
 void RigidBody::step(double dt) {
     if (!movable)
         return;
+
+    // Newton 2nd Law
+    a = f / m;
+    a_theta = torque / I;
+
 #ifdef EX_EULER
     // Explicit Euler scheme
     p += v * dt;
@@ -99,16 +103,6 @@ void RigidBody::step(double dt) {
 #   endif
 # endif
 #endif /* INTEGRATOR */
-}
-
-void RigidBody::apply_newton_second_law() {
-    if (movable) {
-        a = f / m;
-        a_theta = torque / I;
-    }else {
-        a = Vector2::zero();
-        a_theta = 0;
-    }
 }
 
 void RigidBody::subject_to_force(const Vector2 force) {
@@ -151,8 +145,8 @@ void RigidBody::angular_impulse(const double impulse) {
         omega += impulse;
 }
 
-double RigidBody::energy(bool gravity) const {
-    return k_energy() + p_energy() * gravity;
+double RigidBody::energy(bool gravity_enabled) const {
+    return k_energy() + p_energy() * gravity_enabled;
 }
 
 double RigidBody::k_energy() const {
@@ -194,9 +188,24 @@ void RigidBody::reset_color() {
     color = {255, 255, 255, 255};
 }
 
+std::string RigidBody::dump(bool gravity_enabled) const {
+    std::string body_info("Body informations : \n-----------------\n");
+    std::string E_m("Mechanical energy : " + std::to_string(energy(gravity_enabled)) + " J\n");
+    std::string E_k("kinetic energy : " + std::to_string(k_energy()) + " J\n");
+    std::string E_pp("potential energy : " + std::to_string(p_energy()) + " J\n");
+    std::string mass("mass : " + truncate_to_string(m, 1000) + " kg\n");
+    std::string x("x : " + truncate_to_string(p.x, 1000) + " m\n");
+    std::string y("y : " + truncate_to_string(p.y, 1000) + " m\n");
+    std::string vx("vx : " + truncate_to_string(v.x, 1000) + " m/s\n");
+    std::string vy("vy : " + truncate_to_string(v.y, 1000) + " m/s\n");
+    std::string v_theta("omega : " + truncate_to_string(omega, 1000) + " rad/s\n");
 
-Ball::Ball(Vector2 vel, Vector2 pos, double m, double r_, bool movable)
-:   RigidBody(vel, pos, m, 0.5 * m * r_ * r_, movable),
+    return body_info + E_m + mass + x + y + vx + vy + v_theta;
+}
+
+
+Ball::Ball(Vector2 vel, Vector2 pos, double m, double r_, bool movable, bool enabled)
+:   RigidBody(vel, pos, m, 0.5 * m * r_ * r_, movable, enabled),
     r(r_)
 {}
 
@@ -210,23 +219,25 @@ double Ball::get_radius() const {
 }
 
 void Ball::draw(SDL_Renderer* renderer) const {
-    // render_filled_circle(renderer, p.x, p.y, r);
-    // render_fill_circle_fast(renderer, p.x, p.y, r);
-    // double mark(0.75 * r);
-    // render_filled_circle(renderer, p.x + mark * cos(theta), p.y + mark * sin(theta), r / 5);
-    if (movable) {
+    if (movable && enabled) {
         SDL_SetRenderDrawColor(renderer, 0.5 * color.r, 0.5 * color.g, 0.5 * color.b, 0.5*color.a);
         render_fill_circle_fast(renderer, p.x, p.y, r);
         SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
         render_circle(renderer, p.x, p.y, r);
         render_line(renderer, p.x, p.y, p.x + r * cos(theta), p.y + r * sin(theta));
     }else {
-        SDL_SetRenderDrawColor(renderer, 128, 128, 128, 128);
+        if (enabled)
+            SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+        else
+            SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a * 0.5);
         render_circle(renderer, p.x, p.y, r);
-        render_line(renderer, p.x, p.y, p.x + r * cos(PI / 4.0), p.y + r * sin(PI / 4.0));
-        render_line(renderer, p.x, p.y, p.x + r * cos(0.75 * PI), p.y + r * sin(0.75 * PI));
-        render_line(renderer, p.x, p.y, p.x + r * cos(0.75 * PI), p.y - r * sin(0.75 * PI));
-        render_line(renderer, p.x, p.y, p.x + r * cos(PI / 4.0), p.y - r * sin(PI / 4.0));
+        if (!movable) {
+            SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a * 0.5);
+            render_line(renderer, p.x, p.y, p.x + r * cos(PI / 4.0), p.y + r * sin(PI / 4.0));
+            render_line(renderer, p.x, p.y, p.x + r * cos(0.75 * PI), p.y + r * sin(0.75 * PI));
+            render_line(renderer, p.x, p.y, p.x + r * cos(0.75 * PI), p.y - r * sin(0.75 * PI));
+            render_line(renderer, p.x, p.y, p.x + r * cos(PI / 4.0), p.y - r * sin(PI / 4.0));
+        }
     }
     
 }
@@ -274,8 +285,8 @@ bool Ball::contains_point(const Vector2 point) const {
 
 
 Rectangle::Rectangle(Vector2 vel, Vector2 pos, double m, double w_, double h_, Vertices vertices, 
-        bool movable)
-:   RigidBody(vel, pos, m, 1/12.0 * m * (w_ * w_ + h_ * h_), movable, vertices),
+        bool movable, bool enabled)
+:   RigidBody(vel, pos, m, 1/12.0 * m * (w_ * w_ + h_ * h_), movable, enabled, vertices),
     w(w_),
     h(h_)
 {
@@ -294,10 +305,11 @@ void Rectangle::draw(SDL_Renderer* renderer) const {
         SDL_SetRenderDrawColor(renderer, 128, 128, 128, 255);
         render_line(renderer, A.x, A.y, C.x, C.y);
         render_line(renderer, B.x, B.y, D.x, D.y);
-    }else {
-        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
     }
-
+    if (enabled)
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    else
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 0.5 * color.a);
     render_line(renderer, A.x, A.y, B.x, B.y);
     render_line(renderer, B.x, B.y, C.x, C.y);
     render_line(renderer, C.x, C.y, D.x, D.y);
@@ -320,7 +332,7 @@ void Rectangle::handle_wall_collisions() {
     CollisionInfo collision;
     Vector2 r1;
     Vector2 r2;
-    int contacts(0);
+    // int contacts(0);
     if (m_aabb.min.x <= 0) {
         collision.normal = {-1, 0};
         for (auto v : m_vertices) {

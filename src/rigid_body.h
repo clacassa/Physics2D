@@ -12,7 +12,6 @@
 
 constexpr double g(9.81);
 
-
 struct AABB {
     Vector2 min; // Bottom left corner
     Vector2 max; // Top right corner
@@ -20,14 +19,15 @@ struct AABB {
 
 typedef std::vector<Vector2> Vertices;
 
+
 class RigidBody {
 public:
-    RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, bool movable_, Vertices verticies);
-    RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, bool movable_);
+    RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, bool movable_, bool enabled_,
+        Vertices verticies);
+    RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, bool movable_, bool enabled_);
     virtual ~RigidBody();
 
     void step(double dt);
-    void apply_newton_second_law();
     void subject_to_force(const Vector2 force);
     void subject_to_torque(const Vector2 force);
     void reset_forces();
@@ -36,7 +36,7 @@ public:
     void velocity_impulse(const Vector2 impulse);
     void angular_impulse(const double impulse);
     
-    double energy(bool gravity) const;
+    double energy(bool gravity_enabled) const;
     double k_energy() const;
     double p_energy() const;
 
@@ -45,6 +45,8 @@ public:
     void draw_trace(SDL_Renderer* renderer);
     void colorize(const SDL_Color color);
     void reset_color();
+
+    std::string dump(bool gravity_enabled) const;
 
     Vector2 get_a() const { return a; }
     Vector2 get_v() const { return v; }
@@ -55,9 +57,9 @@ public:
     double get_inv_m() const { return inv_m; }
     double get_I() const { return I; }
     double get_inv_I() const { return inv_I; }
-    // coefficient of restitution (COR)
     double get_cor() const { return e; }
-    bool is_movable() const { return this->movable; }
+    bool is_movable() const { return movable; }
+    bool is_enabled() const { return enabled; }
     std::string get_friction() const { return static_friction ? "STATIC" : "DYNAMIC"; }
 
     bool has_vertices() const { return !m_vertices.empty(); }
@@ -100,6 +102,7 @@ protected:
     double e;
 
     bool movable;
+    bool enabled;
 
     Vertices m_vertices;
     AABB m_aabb;
@@ -116,7 +119,7 @@ protected:
 
 class Ball : public RigidBody {
 public:
-    Ball(Vector2 vel, Vector2 pos, double m, double r_, bool movable = true);
+    Ball(Vector2 vel, Vector2 pos, double m, double r_, bool movable = true, bool enabled = true);
     virtual ~Ball() {}
 
     // A ball doesn't have any verticies
@@ -134,7 +137,7 @@ private:
 class Rectangle : public RigidBody {
 public:
     Rectangle(Vector2 vel, Vector2 pos, double m, double w_, double h_, Vertices verticies, 
-            bool movable = true);
+            bool movable = true, bool enabled = true);
     virtual ~Rectangle() {}
 
     void draw(SDL_Renderer* renderer) const override;

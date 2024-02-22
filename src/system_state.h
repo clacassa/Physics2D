@@ -15,6 +15,7 @@
 class SystemState {
 public:
     const double air_viscosity = 1.48e-5;
+    const SDL_Color focus_color = {255, 0, 255, 255};
 
     SystemState();
     virtual ~SystemState();
@@ -23,12 +24,11 @@ public:
     void apply_forces();
     void toggle_gravity();
 
-    void add_ball(Vector2 pos, double mass, double radius, bool movable = true,
+    void add_ball(Vector2 pos, double mass, double radius, bool movable = true, bool enabled = true,
             Vector2 vel = {0, 0});
     void add_rectangle(Vector2 pos, double mass, double width, double height, bool movable = true,
-            Vector2 vel = {0, 0});
-    void add_frame(Vector2 pos);
-    void add_link(Vector2 p1, Vector2 p2);
+            bool enabled = true, Vector2 vel = {0, 0});
+    void add_spring(Vector2 p1, Vector2 p2, Spring::DampingType damping, bool very_stiff);
     void move_focused_body(Vector2 delta_p);
     void rotate_focused_body(double angle);
 
@@ -57,22 +57,18 @@ public:
     };
 
 private:
-    bool gravity;
+    bool gravity_enabled;
     bool air_friction_enabled;
+
     std::vector<RigidBody*> m_bodies;
-    std::vector<Frame*> m_frames;
+    unsigned body_count;
+    unsigned focus;
+
+    std::vector<Spring*> m_springs;
     std::array<Vector2, 3> m_force_fields;
-    std::vector<Constraint*> m_constraints;
-
+    // std::vector<Constraint*> m_constraints;
     SweepAndPrune m_SAP;
-
     TimePerf m_Time_Perf;
-
-    double step_time;
-    double ode_time;
-    double collisions_time;
-
-    size_t focus;
 };
 
 #endif /* SYSTEM_STATE_H */

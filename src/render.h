@@ -1,14 +1,16 @@
 #ifndef RENDER_H
 #define RENDER_H
 
-#include <SDL2/SDL.h>
+#include <SDL.h>
+
+const SDL_Color text_color({255, 255, 255, 255});
+
+constexpr double SCENE_WIDTH(25);           // Scene width in meters
+constexpr unsigned STATUSBAR_HEIGHT(25);    // In pixels
 
 extern unsigned SCREEN_WIDTH;
 extern unsigned SCREEN_HEIGHT;
-
-extern const double RENDER_SCALE;
-// Aspect ratio must be 2
-extern double SCENE_WIDTH;
+extern double RENDER_SCALE;                 // Pixel to meter ratio (#of px for 1m)
 extern double SCENE_HEIGHT;
 
 void render_point(SDL_Renderer* renderer, double x, double y);

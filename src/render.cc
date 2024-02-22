@@ -20,7 +20,8 @@ void render_line(SDL_Renderer* renderer, double x1, double y1, double x2, double
 void render_filled_circle(SDL_Renderer *renderer, double x, double y, double radius) {
     radius *= RENDER_SCALE;
     x *= RENDER_SCALE;
-    y = (SCENE_HEIGHT - y) * RENDER_SCALE;
+    // y = (SCENE_HEIGHT - y) * RENDER_SCALE;
+    y *= RENDER_SCALE;
 
     radius = (int)radius;
     x = (int)x;

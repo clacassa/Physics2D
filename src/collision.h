@@ -2,10 +2,12 @@
 #define COLLISION_H
 
 #include <vector>
-#include <SDL2/SDL.h>
+#include <SDL.h>
 #include "rigid_body.h" 
 
 
+constexpr unsigned GJK_max_iterations(1e4);
+constexpr unsigned EPA_max_iterations(1e4);
 constexpr double EPA_epsilon(1e-5);
 
 struct CollisionInfo {
@@ -18,8 +20,6 @@ struct CollisionInfo {
     CollisionInfo() : intersecting(false), depth(0) {}
 };
 
-CollisionInfo detect_collision(RigidBody* a, RigidBody* b, double& time_1, double& time_2);
-
 void solve_collision(RigidBody* a, RigidBody* b, CollisionInfo collision);
 void solve_wall_collision(RigidBody* body, CollisionInfo collision);
 
@@ -28,10 +28,12 @@ Vector2 support(RigidBody* body, Vector2 d);
 /////// BROAD PHASE /////////////
 class SweepAndPrune {
 public:
+    typedef std::array<RigidBody*, 2> BodyPair;
+
     SweepAndPrune() : m_var_x(0), m_var_y(0) {}
-    virtual ~SweepAndPrune() {}
+    virtual ~SweepAndPrune() { m_list.clear(); }
     void choose_axis(std::vector<RigidBody*> list);
-    std::vector<std::vector<RigidBody*>> process(std::vector<RigidBody*>& list);
+    std::vector<BodyPair> process(std::vector<RigidBody*>& list);
     void sort_ascending_x(std::vector<RigidBody*>& list);
     void sort_ascending_y(std::vector<RigidBody*>& list);
 
@@ -44,6 +46,7 @@ private:
 bool AABB_overlap(AABB a, AABB b);
 
 /////// NARROW PHASE ///////////
+CollisionInfo detect_collision(RigidBody* a, RigidBody* b, double& time_1, double& time_2);
 // SAT
 bool intersect_circle_circle(RigidBody* a, RigidBody* b, CollisionInfo& result);
 bool intersect_circle_polygon(RigidBody* a, RigidBody* b, CollisionInfo& result);
@@ -103,84 +106,5 @@ struct ClosestPoints {
 
 ClosestPoints convex_combination(Simplex s, SourcePoints shape_points, size_t index);
 
-
-// void solve_circle_circle(RigidBody* a, RigidBody* b, bool is_elastic = true);
-
-// struct Cell {
-//     double x_min;
-//     double x_max;
-//     double y_min;
-//     double y_max;
-//     std::vector<RigidBody*> bodies;
-// };
-
-// struct Circle;
-
-// struct Rect {
-//     double x;
-//     double y;
-//     double w;
-//     double h;
-
-//     Rect(double x_, double y_, double w_, double h_) : x(x_), y(y_), w(w_), h(h_) {}
-//     bool contains(Vector2 point);
-//     bool intersects(Rect range);
-//     bool intersects(Circle range);
-// };
-
-// struct Circle {
-//     double x;
-//     double y;
-//     double r;
-
-//     Circle(double x_, double y_, double r_) : x(x_), y(y_), r(r_) {}
-//     bool contains(Vector2 point);
-//     bool intersects(Rect range);
-// };
-
-// class QuadTree {
-//     const unsigned NODE_CAPACITY = 6;
-
-// public:
-//     QuadTree(Rect boundary_);
-//     virtual ~QuadTree();
-
-//     void subdivide();
-//     bool insert(RigidBody* body);
-//     void query(Circle range, std::vector<RigidBody*>& found);
-
-//     void draw(SDL_Renderer* renderer);
-
-// private:
-//     Rect m_boundary;
-//     std::vector<RigidBody*> m_index;
-//     bool m_divided;
-
-//     QuadTree* north_west;
-//     QuadTree* north_east;
-//     QuadTree* south_west;
-//     QuadTree* south_east;
-// };
-
-// class CollisionGrid {
-// public:
-//     CollisionGrid();
-//     virtual ~CollisionGrid() {}
-
-//     void clear_cells();
-//     void update_cell(RigidBody* body, double x, double y);
-//     void solve_collisions();
-
-// protected:
-//     void solve_cells(Cell& cell_1, Cell& cell_2);
-
-// private:
-//     unsigned m_partitions;
-//     unsigned m_rows;
-//     unsigned m_cols;
-//     unsigned width;
-//     unsigned height;
-//     std::vector<std::vector<Cell>> m_cells;
-// };       
 
 #endif /* COLLISION_H */
