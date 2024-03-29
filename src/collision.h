@@ -2,28 +2,46 @@
 #define COLLISION_H
 
 #include <vector>
-#include <SDL.h>
-#include "rigid_body.h" 
+#include <array>
+#include "vector2.h"
 
+struct AABB;
+class RigidBody;
 
 constexpr unsigned GJK_max_iterations(1e4);
 constexpr unsigned EPA_max_iterations(1e4);
 constexpr double EPA_epsilon(1e-5);
 
-struct CollisionInfo {
+struct Manifold {
     bool intersecting;
     Vector2 normal;
-    Vector2 contact_point;
-    std::vector<Vector2> contact_points;
+    std::array<Vector2, 2> contact_points;  // In 2D, we have exactly 2 contact points
     double depth;
 
-    CollisionInfo() : intersecting(false), depth(0) {}
+    Manifold() : intersecting(false), depth(0) {}
 };
 
-void solve_collision(RigidBody* a, RigidBody* b, CollisionInfo collision);
-void solve_wall_collision(RigidBody* body, CollisionInfo collision);
+/*
+* Impulse-based reaction model
+* https://en.wikipedia.org/wiki/Collision_response
+*/
+void solve_collision(RigidBody* a, RigidBody* b, Manifold collision);
+void solve_wall_collision(RigidBody* body, Manifold collision);
 
+/**
+ * @brief Computes the support point of an object in a given direction
+ * @return 
+ */
 Vector2 support(RigidBody* body, Vector2 d);
+/**
+ * @brief Computes the support point of an object in a given direction,
+ * skipping the point given as parameter. In other words, if the latter
+ * is a point laying on the boundary of the object, it is not taken
+ * into account during the calculation of the support.
+ * @param skip_me Point to ignore during the support calculation
+ * @return 
+ */
+Vector2 support(RigidBody* body, Vector2 d, Vector2 skip_me);
 
 /////// BROAD PHASE /////////////
 class SweepAndPrune {
@@ -31,7 +49,8 @@ public:
     typedef std::array<RigidBody*, 2> BodyPair;
 
     SweepAndPrune() : m_var_x(0), m_var_y(0) {}
-    virtual ~SweepAndPrune() { m_list.clear(); }
+    virtual ~SweepAndPrune() {}
+
     void choose_axis(std::vector<RigidBody*> list);
     std::vector<BodyPair> process(std::vector<RigidBody*>& list);
     void sort_ascending_x(std::vector<RigidBody*>& list);
@@ -46,11 +65,13 @@ private:
 bool AABB_overlap(AABB a, AABB b);
 
 /////// NARROW PHASE ///////////
-CollisionInfo detect_collision(RigidBody* a, RigidBody* b, double& time_1, double& time_2);
+Manifold detect_collision(RigidBody* a, RigidBody* b, double& time_1, double& time_2);
+// GJK coupled with EPA
+void launch_GJK_EPA(RigidBody* a, RigidBody* b, Manifold& rslt,  double& time_1, double& time_2);
 // SAT
-bool intersect_circle_circle(RigidBody* a, RigidBody* b, CollisionInfo& result);
-bool intersect_circle_polygon(RigidBody* a, RigidBody* b, CollisionInfo& result);
-bool intersect_polygon_polygon(RigidBody* a, RigidBody* b, CollisionInfo& result);
+bool intersect_circle_circle(RigidBody* a, RigidBody* b, Manifold& result);
+bool intersect_circle_polygon(RigidBody* a, RigidBody* b, Manifold& result);
+bool intersect_polygon_polygon(RigidBody* a, RigidBody* b, Manifold& result);
 
 // A 2D simplex (point, segment or triangle)
 typedef std::vector<Vector2> Simplex;
@@ -77,7 +98,7 @@ bool nearest_simplex(Simplex& s, Vector2& direction, SourcePoints& points);
 struct Edge {
     double distance;
     Vector2 normal;
-    size_t index;
+    unsigned index;
 
     Edge() : distance(0), normal(0, 0), index(0) {}
 };
@@ -90,7 +111,7 @@ struct Edge {
  * @param shape_points The source points of A and B that were used to create the simplex
  * @param result The resulting information of the collision (normal, depth, contact points)
  */
-void EPA(Simplex s, SourcePoints points, RigidBody* a, RigidBody* b, CollisionInfo& result);
+void EPA(Simplex s, SourcePoints points, RigidBody* a, RigidBody* b, Manifold& result);
 /**
  * @brief Given a simplex, find its closest edge to the origin.
  * @param s Simplex containing the origin
@@ -104,7 +125,7 @@ struct ClosestPoints {
     Vector2 closest_b;
 };
 
-ClosestPoints convex_combination(Simplex s, SourcePoints shape_points, size_t index);
+ClosestPoints convex_combination(Simplex s, SourcePoints shape_points, unsigned index);
 
 
 #endif /* COLLISION_H */

@@ -171,7 +171,9 @@ void TextManager::render_all() {}
 void TextManager::free_all() {
     for (auto t : textures) {
         t->free();
+        delete t;
     }
+    textures.clear();
 }
 
 VTextLayout::VTextLayout(SDL_Renderer* renderer, int x, int y)

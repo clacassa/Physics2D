@@ -73,8 +73,6 @@ const Vector3 Vector3::operator/(const double a) const {
 }
 
 
-
-
 double dot2(const Vector2 a, const Vector2 b) {
     return a.x * b.x + a.y * b.y;
 }

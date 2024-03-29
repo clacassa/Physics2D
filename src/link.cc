@@ -1,13 +1,16 @@
+#include <iostream>
+#include "SDL_render.h"
 #include "link.h"
 #include "render.h"
-#include <iostream>
+#include "rigid_body.h"
+#include "vector2.h"
 
 
-Spring::Spring(RigidBody* A_, RigidBody* B_, double stiffness, double length, DampingType damping)
+Spring::Spring(RigidBody* A_, RigidBody* B_, double length, float stiffness, DampingType damping)
 :   A(A_),
     B(B_),
-    k(stiffness),
-    l_0(length)
+    l_0(length),
+    k(stiffness)
 {
     const double m(A->get_mass() * B->get_mass() / (A->get_mass() + B->get_mass()));
     critical_damping = 2 * sqrt(k * m);
@@ -34,17 +37,17 @@ void Spring::apply() {
 
     const Vector2 n(axis.normalized());
     // Calculate equilibrum position
-    if (!A->is_movable() || !A->is_enabled())
+    if (A->is_static() || !A->is_enabled())
         equilibrum_pos = A->get_p() - n * (l_0 + dot2(B->get_f(), n) / k);
-    else if (!B->is_movable() || !B->is_enabled())
+    else if (B->is_static() || !B->is_enabled())
         equilibrum_pos = B->get_p() + n * (l_0 + dot2(A->get_f(), n) / k);
 
     // Calculate and apply spring forces on each body
     const double callback(k * (l - l_0));
     const double damping(actual_damping * dot2((A->get_v() - B->get_v()), n));
-    if (!B->is_movable())
+    if (B->is_static())
         A->subject_to_force(-n * (callback + damping));
-    else if (!A->is_movable())
+    else if (A->is_static())
         B->subject_to_force(n * (callback + damping));
     else {
         A->subject_to_force(-n * (callback + damping) * 0.5);
@@ -56,19 +59,57 @@ void Spring::apply() {
 
 void Spring::draw(SDL_Renderer* renderer) {
     SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
-    render_line(renderer, B->get_p().x, B->get_p().y, A->get_p().x, A->get_p().y);
+    // render_line(renderer, B->get_p().x, B->get_p().y, A->get_p().x, A->get_p().y);
     // if (A->is_movable())
     //     A->draw_trace(renderer);
     // if (B->is_movable())
     //     B->draw_trace(renderer);
+    const Vector2 A_pos(A->get_p());
+    const Vector2 B_pos(B->get_p());
+    const Vector2 axis(A_pos - B_pos);
+    const double length(axis.norm());
+    const unsigned n_coils(l_0 * RENDER_SCALE / 20);
 
+    if (n_coils > 0) {
+        const double anchor_height((length / (double)n_coils) / 2.0);
+        const double coil_height((length - anchor_height * 2) / (double)n_coils);
+        const Vector2 direction(axis.normalized());
+        for (unsigned i(0); i < n_coils; ++i) {
+            Vector2 coil_start(B_pos + direction * (anchor_height + coil_height * i));
+            draw_coil(renderer, coil_start, direction, coil_height);
+        }
+
+        const Vector2 A_anchor(A_pos - direction * anchor_height);
+        const Vector2 B_anchor(B_pos + direction * anchor_height);
+        render_line(renderer, A_pos, A_anchor);
+        render_line(renderer, B_pos, B_anchor);
+    }else {
+        render_line(renderer, A_pos, B_pos);
+    }
+
+#ifdef DEBUG
     SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-    render_line(renderer, 0, 0, equilibrum_pos.x, equilibrum_pos.y);
+    render_point(renderer, equilibrum_pos);
+#endif
 }
 
 double Spring::energy() const {
     const double x(Vector2(B->get_p() - A->get_p()).norm() - l_0);
     return 0.5 * k * x * x;
+}
+
+void Spring::draw_coil(SDL_Renderer* renderer, Vector2 start, Vector2 direction, double height) const {
+    //const double width(10e-2);
+    const double width(SCENE_WIDTH * 10e-3);
+    const double dw(width / 2.0);
+    const double dh(height / 4.0);
+    const Vector2 perp(direction.normal());
+    const Vector2 p1(start + direction * dh + perp * dw);
+    render_line(renderer, start, p1);
+    const Vector2 p2(p1 + direction * dh * 2 - perp * width);
+    render_line(renderer, p1, p2);
+    const Vector2 p3(p2 + direction * dh + perp * dw);
+    render_line(renderer, p2, p3);
 }
 
 

@@ -6,11 +6,12 @@
 #include <array>
 #include <string>
 #include <chrono>
-#include "render.h"
+#include "collision.h"  // SweepAndPrune
+#include "link.h"       // Spring::DampingType
 #include "rigid_body.h"
-#include "collision.h"
-#include "link.h"
 
+// Forward declarations
+class RigidBody;
 
 class SystemState {
 public:
@@ -24,24 +25,30 @@ public:
     void apply_forces();
     void toggle_gravity();
 
-    void add_ball(Vector2 pos, double mass, double radius, bool movable = true, bool enabled = true,
+    void destroy_all();
+
+    void add_ball(Vector2 pos, double radius, BodyType type = DYNAMIC, bool enabled = true,
             Vector2 vel = {0, 0});
-    void add_rectangle(Vector2 pos, double mass, double width, double height, bool movable = true,
+    void add_rectangle(Vector2 pos, double width, double height, BodyType type = DYNAMIC,
             bool enabled = true, Vector2 vel = {0, 0});
-    void add_spring(Vector2 p1, Vector2 p2, Spring::DampingType damping, bool very_stiff);
+    void add_spring(Vector2 p1, Vector2 p2, Spring::DampingType damping, float stiffness);
     void move_focused_body(Vector2 delta_p);
     void rotate_focused_body(double angle);
 
-    void render(SDL_Renderer* renderer);
+    void render(SDL_Renderer* renderer, bool running, bool draw_body_motion);
     
-    std::string dump_data() const;
+    std::string dump_metrics() const;
+    std::string dump_selected_body() const;
+    double total_energy() const;
+
     void focus_next();
     void focus_prev();
     void focus_on_position(Vector2 p);
 
-    size_t get_body_count() const { return m_bodies.size(); };
+    inline size_t get_body_count() const { return m_bodies.size(); }
+    RigidBody* get_selected_body() const;
 
-    // Custom struct to store time analytics variables
+    // Custom struct to store time metrics variables
     struct TimePerf {
         double step_time;
         double ode_time;
@@ -63,6 +70,8 @@ private:
     std::vector<RigidBody*> m_bodies;
     unsigned body_count;
     unsigned focus;
+
+    std::vector<Manifold*> m_contacts;
 
     std::vector<Spring*> m_springs;
     std::array<Vector2, 3> m_force_fields;

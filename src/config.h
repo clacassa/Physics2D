@@ -8,7 +8,14 @@
 
 #define IM_EULER
 
-#define DEBUG_FRICTION
-// #define DEBUG_COLLISION
+#ifdef DEBUG
+#   ifdef FRICTION
+#       define DEBUG_FRICTION
+#   endif
+#define DEBUG_COLLISION
+#endif
+
+constexpr double PI(3.14159265);
+constexpr double g(9.81);
 
 #endif /* CONFIG_H */

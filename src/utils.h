@@ -1,7 +1,7 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#include <SDL.h>
+#include <SDL_render.h>
 #include <SDL_image.h>
 #include <SDL_ttf.h>
 #include <string>
@@ -13,7 +13,7 @@
  * @param precision The precision of the truncature, i.e. 1000 for 3 digits after the point
  * @return A string containing the truncated value
  */
-std::string truncate_to_string(double n, int precision);
+std::string truncate_to_string(double n, int precision = 100);
 
 
 class LTimer {
@@ -28,8 +28,8 @@ public:
 
     Uint32 get_ticks() const;
 
-    bool is_started() const { return m_started; }
-    bool is_paused() const { return m_paused; }
+    inline bool is_started() const { return m_started; }
+    inline bool is_paused() const { return m_paused; }
 
 private:
     Uint32 m_start_ticks;
@@ -56,8 +56,8 @@ public:
 
     void render(int x, int y);
 
-    int get_width() const { return m_width; }
-    int get_height() const { return m_height; }
+    inline int get_width() const { return m_width; }
+    inline int get_height() const { return m_height; }
 
 private:
     SDL_Texture* m_texture;

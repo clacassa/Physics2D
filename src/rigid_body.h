@@ -1,30 +1,30 @@
 #ifndef RIGID_BODY_H
 #define RIGID_BODY_H
 
+#include <SDL_render.h>
 #include <cmath>
 #include <deque>
 #include <vector>
 #include <string>
-#include "render.h"
 #include "vector2.h"
 
-#define PI 3.14159265
+typedef std::vector<Vector2> Vertices;
 
-constexpr double g(9.81);
+enum BodyType { STATIC, DYNAMIC };
 
 struct AABB {
     Vector2 min; // Bottom left corner
     Vector2 max; // Top right corner
 };
 
-typedef std::vector<Vector2> Vertices;
-
+constexpr double stl_steel_density(7930); // kg / m^3
+constexpr double stl_steel_restitution(0.78 * 0.75); // Restitution is reduced for tuning behavior
 
 class RigidBody {
 public:
-    RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, bool movable_, bool enabled_,
+    RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, BodyType type_, bool enabled_,
         Vertices verticies);
-    RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, bool movable_, bool enabled_);
+    RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, BodyType type_, bool enabled_);
     virtual ~RigidBody();
 
     void step(double dt);
@@ -33,7 +33,7 @@ public:
     void reset_forces();
     void move(const Vector2 delta_p, bool update_AABB = true);
     void rotate(const double angle, bool update_AABB = true);
-    void velocity_impulse(const Vector2 impulse);
+    void linear_impulse(const Vector2 impulse);
     void angular_impulse(const double impulse);
     
     double energy(bool gravity_enabled) const;
@@ -42,38 +42,38 @@ public:
 
     virtual void draw(SDL_Renderer* renderer) const = 0;
     void draw_forces(SDL_Renderer* renderer) const;
-    void draw_trace(SDL_Renderer* renderer);
+    void draw_trace(SDL_Renderer* renderer, bool update_trace);
     void colorize(const SDL_Color color);
     void reset_color();
 
     std::string dump(bool gravity_enabled) const;
 
-    Vector2 get_a() const { return a; }
-    Vector2 get_v() const { return v; }
-    Vector2 get_p() const { return p; }
-    Vector2 get_f() const { return f; }
-    double get_omega() const { return omega; }
-    double get_mass() const { return m; }
-    double get_inv_m() const { return inv_m; }
-    double get_I() const { return I; }
-    double get_inv_I() const { return inv_I; }
-    double get_cor() const { return e; }
-    bool is_movable() const { return movable; }
-    bool is_enabled() const { return enabled; }
-    std::string get_friction() const { return static_friction ? "STATIC" : "DYNAMIC"; }
+    inline Vector2 get_a() const { return a; }
+    inline Vector2 get_v() const { return v; }
+    inline Vector2 get_p() const { return p; }
+    inline Vector2 get_f() const { return f; }
+    inline double get_theta() const { return theta; }
+    inline double get_omega() const { return omega; }
+    inline double get_mass() const { return m; }
+    inline double get_inv_m() const { return inv_m; }
+    inline double get_I() const { return I; }
+    inline double get_inv_I() const { return inv_I; }
+    inline double get_cor() const { return e; }
+    inline bool is_static() const { return (m_type == STATIC); }
+    inline bool is_enabled() const { return enabled; }
+    inline std::string get_friction() const { return static_friction ? "STATIC" : "DYNAMIC"; }
 
-    bool has_vertices() const { return !m_vertices.empty(); }
-    virtual std::vector<Vector2> get_vertices() const { return m_vertices; }
-    virtual double get_radius() const { return 0.0; }
-    AABB get_AABB() const { return m_aabb; }
+    inline bool has_vertices() const { return !m_vertices.empty(); }
+    inline virtual std::vector<Vector2> get_vertices() const { return m_vertices; }
+    inline virtual double get_radius() const { return 0.0; }
+    inline AABB get_AABB() const { return m_aabb; }
+
+    inline void set_test(const size_t test) { id = test; }
+    inline void set_friction_debug(const bool friction) { static_friction = friction; }
 
     virtual void handle_wall_collisions() = 0;
     virtual void update_bounding_box() = 0;
     virtual bool contains_point(const Vector2 point) const = 0;
-
-    void set_test(const Vector2 test) { m_t = test; }
-    void set_test(const size_t test) { id = test; }
-    void set_friction_debug(const bool friction) { static_friction = friction; }
 
 protected:
     // linear, x y axis
@@ -101,7 +101,7 @@ protected:
      */
     double e;
 
-    bool movable;
+    BodyType m_type;
     bool enabled;
 
     Vertices m_vertices;
@@ -109,9 +109,8 @@ protected:
 
     size_t max_track_length;
     std::deque<Vector2> track;
-    SDL_Color color;    
+    SDL_Color color;
 
-    Vector2 m_t;
     size_t id;
     bool static_friction;
 };
@@ -119,7 +118,7 @@ protected:
 
 class Ball : public RigidBody {
 public:
-    Ball(Vector2 vel, Vector2 pos, double m, double r_, bool movable = true, bool enabled = true);
+    Ball(Vector2 vel, Vector2 pos, double m, double r_, BodyType type = DYNAMIC, bool enabled = true);
     virtual ~Ball() {}
 
     // A ball doesn't have any verticies
@@ -137,7 +136,7 @@ private:
 class Rectangle : public RigidBody {
 public:
     Rectangle(Vector2 vel, Vector2 pos, double m, double w_, double h_, Vertices verticies, 
-            bool movable = true, bool enabled = true);
+            BodyType type = DYNAMIC, bool enabled = true);
     virtual ~Rectangle() {}
 
     void draw(SDL_Renderer* renderer) const override;

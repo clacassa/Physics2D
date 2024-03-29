@@ -5,132 +5,178 @@
 #include <array>
 #include <climits>
 #include "collision.h"
+#include "rigid_body.h"
 #include "config.h"
 
 using namespace std::chrono;
 
 
-void solve_collision(RigidBody* a, RigidBody* b, CollisionInfo collision) {
+void solve_collision(RigidBody* a, RigidBody* b, Manifold collision) {
     const Vector2 n(collision.normal);
-    const Vector2 p(collision.contact_point);
-    /*
-     * Impulse-based reaction model
-     * https://en.wikipedia.org/wiki/Collision_response
-     */
-    Vector2 r1(p - a->get_p());
-    Vector3 r1_3(r1.x, r1.y, 0);
-    Vector3 w1_3(0, 0, a->get_omega());
-    Vector2 v_p1(a->get_v() + Vector2(cross(w1_3, r1_3).x, cross(w1_3, r1_3).y));
+    std::array<double, 2> impulse_list;
+    std::array<Vector2, 2> friction_list;
+    std::array<Vector2, 2> ra_list;
+    std::array<Vector2, 2> rb_list;
 
-    Vector2 r2(p - b->get_p());
-    Vector3 r2_3(r2.x, r2.y, 0);
-    Vector3 w2_3(0, 0, b->get_omega());
-    Vector2 v_p2(b->get_v() + Vector2(cross(w2_3, r2_3).x, cross(w2_3, r2_3).y));
+    for (uint8_t i(0); i < 2; ++i) {
+        const Vector2 p(collision.contact_points[i]);
 
-    Vector2 v_r(v_p2 - v_p1);
+        Vector2 ra(p - a->get_p());
+        Vector3 ra_3(ra.x, ra.y, 0);
+        Vector3 wa_3(0, 0, a->get_omega());
+        Vector2 v_pa(a->get_v() + Vector2(cross(wa_3, ra_3).x, cross(wa_3, ra_3).y));
 
-    Vector2 u(triple_product(-r1, r1, n) * a->get_inv_I()
-            + triple_product(-r2, r2, n) * b->get_inv_I());
+        Vector2 rb(p - b->get_p());
+        Vector3 rb_3(rb.x, rb.y, 0);
+        Vector3 wb_3(0, 0, b->get_omega());
+        Vector2 v_pb(b->get_v() + Vector2(cross(wb_3, rb_3).x, cross(wb_3, rb_3).y));
 
-    double denom(a->get_inv_m() + b->get_inv_m() + dot2(u, n));
-    double impulse(-(1 + std::min(a->get_cor(), b->get_cor())) * dot2(v_r, n) / denom);
-    Vector2 j(n * impulse);
+        Vector2 v_r(v_pb - v_pa);
 
-    a->velocity_impulse(-j * a->get_inv_m());
-    b->velocity_impulse(j * b->get_inv_m());
+        Vector2 u(triple_product(-ra, ra, n) * a->get_inv_I()
+                + triple_product(-rb, rb, n) * b->get_inv_I());
 
-    // if (b->is_movable())
-        a->angular_impulse(-impulse * a->get_inv_I() * cross2(r1, n));
-    // if (a->is_movable())
-        b->angular_impulse(impulse * b->get_inv_I() * cross2(r2, n));
+        double denom(a->get_inv_m() + b->get_inv_m() + dot2(u, n));
+        double impulse(-(1 + std::min(a->get_cor(), b->get_cor())) * dot2(v_r, n) / denom);
+        impulse /= collision.contact_points.size();
+        // Vector2 j(n * impulse);
 
 #ifdef FRICTION
-    const double vr_n(dot2(v_r, n));
-    Vector2 f_e(b->get_f());
-    const double fe_n(dot2(f_e, n));
-    Vector2 t;
-    if (vr_n != 0) {
-        t = (v_r - n * vr_n).normalized();
-    }else if (fe_n != 0) {
-        t = (f_e - n * fe_n).normalized();
-    }
+        const double vr_n(dot2(v_r, n));
+        Vector2 f_e(b->get_f());
+        const double fe_n(dot2(f_e, n));
+        Vector2 t;
+        if (vr_n != 0) {
+            t = (v_r - n * vr_n).normalized();
+        }else if (fe_n != 0) {
+            t = (f_e - n * fe_n).normalized();
+        }
 
-    double j_s(0.7 * impulse); // 0.78 for stainless steel
-    double j_d(0.42 * impulse); // 0.42 for stainless steel
-    // double friction(-dot2(v_r, t) / (1 / a->get_mass() + 1 / b->get_mass() + dot2(u, t)));
-    double friction((a->get_mass()*b->get_mass() / (a->get_mass()+b->get_mass()) * dot2(v_r, t)));
-    Vector2 j_t(t * friction);
-    Vector2 j_f;
-    if (abs(friction) <= j_s) {
-        j_f = -j_t;
-        a->set_friction_debug(true);
-        b->set_friction_debug(true);
-    }else {
-        j_f = -t * j_d;
-        a->set_friction_debug(false);
-        b->set_friction_debug(false);
-    }
-
-    a->velocity_impulse(-j_f * a->get_inv_m());
-    b->velocity_impulse(j_f * b->get_inv_m());
-
-    a->angular_impulse(-cross2(r1, j_f) * a->get_inv_I());
-    b->angular_impulse(cross2(r2, j_f) * b->get_inv_I());
+        double j_s(0.7 * impulse); // 0.78 for stainless steel
+        double j_d(0.42 * impulse); // 0.42 for stainless steel
+        // double friction(-dot2(v_r, t) / (1 / a->get_mass() + 1 / b->get_mass() + dot2(u, t)));
+        double friction(dot2(v_r, t) / (a->get_inv_m() + b->get_inv_m()));
+        friction /= collision.contact_points.size();
+        Vector2 j_t(t * friction);
+        Vector2 j_f;
+        if (abs(friction) <= j_s) {
+            j_f = -j_t;
+#ifdef DEBUG
+            a->set_friction_debug(true);
+            b->set_friction_debug(true);
+#endif
+        }else {
+            j_f = -t * j_d;
+#ifdef DEBUG
+            a->set_friction_debug(false);
+            b->set_friction_debug(false);
+#endif
+        }
+        friction_list[i] = j_f;
 #endif /* FRICTION */
+        impulse_list[i] = impulse;
+        ra_list[i] = ra;
+        rb_list[i] = rb;
+    }
+
+    for (uint8_t i(0); i < 2; ++i) {
+        double impulse(impulse_list[i]);
+        Vector2 j(n * impulse);
+        a->linear_impulse(-j * a->get_inv_m());
+        b->linear_impulse(j * b->get_inv_m());
+
+        Vector2 ra(ra_list[i]); 
+        a->angular_impulse(-impulse * a->get_inv_I() * cross2(ra, n));
+        Vector2 rb(rb_list[i]);
+        b->angular_impulse(impulse * b->get_inv_I() * cross2(rb, n));
+
+#ifdef FRICTION
+        Vector2 j_f(friction_list[i]);
+        const float attenuation_a(!b->is_static() ? 0.5 : 1);
+        const float attenuation_b(!a->is_static() ? 0.5 : 1);
+
+        a->linear_impulse(-j_f * a->get_inv_m() * 1);
+        b->linear_impulse(j_f * b->get_inv_m() * 1);
+
+        a->angular_impulse(-cross2(ra, j_f) * a->get_inv_I() * 1);
+        b->angular_impulse(cross2(rb, j_f) * b->get_inv_I() * 1);
+#endif /* FRICTION */
+    }
 }
 
-void solve_wall_collision(RigidBody* body, CollisionInfo collision) {
+void solve_wall_collision(RigidBody* body, Manifold collision) {
     const Vector2 n(collision.normal);
-    const Vector2 p(collision.contact_point);
-    /*
-     * Impulse-based reaction model
-     * https://en.wikipedia.org/wiki/Collision_response
-     */
-    Vector2 r(p - body->get_p());
-    Vector3 r_3(r.x, r.y, 0);
-    Vector3 w_3(0, 0, body->get_omega());
-    Vector2 v_p(body->get_v() + Vector2(cross(w_3, r_3).x, cross(w_3, r_3).y));
+    std::array<double, 2> impulse_list;
+    std::array<Vector2, 2> friction_list;
+    std::array<Vector2, 2> r_list;
 
-    Vector2 v_r(-v_p);
+    for (uint8_t i(0); i < 2; ++i) {
+        const Vector2 p(collision.contact_points[i]);
 
-    Vector2 u(triple_product(-r, r, n) * body->get_inv_I());
-    double denom(body->get_inv_m() + dot2(u, n));
-    double impulse(-(1 + 0.6) * dot2(v_r, n) / denom); // Walls made of wood (e = 0.6)
-    Vector2 j(n * impulse);
+        Vector2 r(p - body->get_p());
+        Vector3 r_3(r.x, r.y, 0);
+        Vector3 w_3(0, 0, body->get_omega());
+        Vector2 v_p(body->get_v() + Vector2(cross(w_3, r_3).x, cross(w_3, r_3).y));
 
-    body->velocity_impulse(-j * body->get_inv_m());
-    body->angular_impulse(-impulse * body->get_inv_I() * cross2(r, n));
+        Vector2 v_r(-v_p);
+
+        Vector2 u(triple_product(-r, r, n) * body->get_inv_I());
+        double denom(body->get_inv_m() + dot2(u, n));
+        double impulse(-(1 + 0.6) * dot2(v_r, n) / denom); // Walls made of wood (e = 0.6)
+        impulse /= collision.contact_points.size();
+        // Vector2 j(n * impulse);
 
 #ifdef FRICTION
-    const double vr_n(dot2(v_r, n));
-    Vector2 f_e(body->get_f());
-    const double fe_n(dot2(f_e, n));
-    Vector2 t;
-    if (vr_n != 0) {
-        t = (v_r - n * vr_n).normalized();
-    }else if (fe_n != 0) {
-        t = (f_e - n * fe_n).normalized();
+        const double vr_n(dot2(v_r, n));
+        Vector2 f_e(body->get_f());
+        const double fe_n(dot2(f_e, n));
+        Vector2 t;
+        if (vr_n != 0) {
+            t = (v_r - n * vr_n).normalized();
+        }else if (fe_n != 0) {
+            t = (f_e - n * fe_n).normalized();
+        }
+
+        double j_s(0.7 * impulse); // Reduced friction coefficients to avoid energy peaks
+        double j_d(0.42 * impulse);
+        // double friction(body->get_mass() * dot2(v_r, t));
+        double friction(-dot2(v_r, t) / (body->get_inv_m() + dot2(u, t)));
+        friction /= collision.contact_points.size();
+        Vector2 j_t(t * friction);
+        Vector2 j_f;
+        if (abs(friction) <= j_s) {
+            j_f = j_t;
+#ifdef DEBUG
+            body->set_friction_debug(true);
+#endif
+        }else {
+            j_f = -t * j_d;
+#ifdef DEBUG
+            body->set_friction_debug(false);
+#endif
+        }
+        friction_list[i] = j_f;
+#endif /* FRICTION */
+        impulse_list[i] = impulse;
+        r_list[i] = r;
     }
 
-    double j_s(0.5 * impulse);
-    double j_d(0.3 * impulse);
-    // double friction(body->get_mass() * dot2(v_r, t));
-    double friction(-dot2(v_r, t) / (body->get_inv_m() + dot2(u, t)));
-    Vector2 j_t(t * friction);
-    Vector2 j_f;
-    if (abs(friction) <= j_s) {
-        j_f = j_t;
-        body->set_friction_debug(true);
-    }else {
-        j_f = -t * j_d;
-        body->set_friction_debug(false);
-    }
+    for (uint8_t i(0); i < 2; ++i) {
+        double impulse(impulse_list[i]);
+        Vector2 j(n * impulse);
+        body->linear_impulse(-j * body->get_inv_m());
+        Vector2 r(r_list[i]);
+        body->angular_impulse(-impulse * body->get_inv_I() * cross2(r, n));
 
+#ifdef FRICTION
+        Vector2 j_f(friction_list[i]);
+        double attenuation(body->has_vertices() ? 0.5 : 0.7);
 //// NEED TO CORRECT BOUNCING AS FRICTION INDUCES TOO MUCH ROTATION AGAINST WALLS ///////
-    body->velocity_impulse(-j_f * body->get_inv_m() * 0.5);             // 0.5 attenuation
-    body->angular_impulse(-cross2(r, j_f) * body->get_inv_I() * 0.5);   // 0.5 attenuation
+        body->linear_impulse(-j_f * body->get_inv_m() * attenuation);            // 0.5 attenuation
+        body->angular_impulse(-cross2(r, j_f) * body->get_inv_I() * attenuation);// 0.5 attenuation
 //////////////////////////////////////
 #endif /* FRICTION */
+    }
 }
 
 Vector2 support(RigidBody* body, Vector2 d) {
@@ -151,10 +197,33 @@ Vector2 support(RigidBody* body, Vector2 d) {
     return support;
 }
 
+Vector2 support(RigidBody* body, Vector2 d, Vector2 skip_me) {
+    Vector2 support;
+    if (body->has_vertices()) {
+        double max(-INT_MAX);
+        for (auto v : body->get_vertices()) {
+            if (v == skip_me) {
+                continue; 
+            }
+
+            double projection(dot2(v, d));
+            if (projection >= max) {
+                max = projection;
+                support = v;
+            }
+        }
+    }else {
+        support = body->get_p() + d.normalized() * body->get_radius();
+    }
+
+    return support;
+}
+
 /////// BROAD PHASE /////////////
 std::vector<SweepAndPrune::BodyPair> SweepAndPrune::process(std::vector<RigidBody*>& list) {
-    if (m_list.size() != list.size())
+    if (m_list.size() != list.size()) {
         m_list = list;
+    }
     std::vector<SweepAndPrune::BodyPair> possible_collisions;
     std::vector<RigidBody*> active_intervall;
 
@@ -162,8 +231,9 @@ std::vector<SweepAndPrune::BodyPair> SweepAndPrune::process(std::vector<RigidBod
         sort_ascending_x(m_list);
         for (unsigned i(0); i < m_list.size(); ++i) {
             // Skip if the body is disabled
-            if (!m_list[i]->is_enabled())
+            if (!m_list[i]->is_enabled()) {
                 continue;
+            }
 
             for (unsigned j(0); j < active_intervall.size(); ++j) {
                 if (m_list[i]->get_AABB().min.x > active_intervall[j]->get_AABB().max.x) {
@@ -179,8 +249,9 @@ std::vector<SweepAndPrune::BodyPair> SweepAndPrune::process(std::vector<RigidBod
         sort_ascending_y(m_list);
         for (unsigned i(0); i < m_list.size(); ++i) {
             // Skip if the body is disabled
-            if (!m_list[i]->is_enabled())
+            if (!m_list[i]->is_enabled()) {
                 continue;
+            }
                 
             for (unsigned j(0); j < active_intervall.size(); ++j) {
                 if (m_list[i]->get_AABB().min.y > active_intervall[j]->get_AABB().max.y) {
@@ -237,46 +308,42 @@ bool AABB_overlap(AABB a, AABB b) {
 
 
 /////// NARROW PHASE ///////////
-CollisionInfo detect_collision(RigidBody* a, RigidBody* b, double& time_1, double& time_2) {
-    CollisionInfo result;
-    if (!a->is_movable() && !b->is_movable())
+Manifold detect_collision(RigidBody* a, RigidBody* b, double& time_1, double& time_2) {
+    Manifold result;
+    if (a->is_static() && b->is_static()) {
         return result;
+    }
 #ifdef SAT
     const bool a_is_polygon(a->has_vertices());
     const bool b_is_polygon(b->has_vertices());
 
     if (!a_is_polygon) {
-        if (!b_is_polygon)
+        if (!b_is_polygon) {
             result.intersecting = intersect_circle_circle(a, b, result);
-        else {
-            result.intersecting = intersect_circle_polygon(a, b, result);
+        }else {
+            //result.intersecting = intersect_circle_polygon(a, b, result);
+            launch_GJK_EPA(a, b, result, time_1, time_2);
         }
     }else if (!b_is_polygon) {
-        result.intersecting = intersect_circle_polygon(b, a, result);
-        result.normal *= -1;
-    }else { // Use GJK/EPA for polygon-polygon case
+        // result.intersecting = intersect_circle_polygon(b, a, result);
+        //result.normal *= -1;
+        launch_GJK_EPA(a, b, result, time_1, time_2);
+    }else { 
 # ifdef GJK_EPA
-        Simplex s;
-        SourcePoints points;
-        auto start(steady_clock::now());
-        result.intersecting = intersect_GJK(s, points, a, b);
-        auto t1(steady_clock::now());
-
-        time_1 += duration_cast<microseconds>(t1 - start).count();
-
-        if (result.intersecting) {
-            auto t2(steady_clock::now());
-            EPA(s, points, a, b, result);
-            auto t3(steady_clock::now());
-
-            time_2 += duration_cast<microseconds>(t3 - t2).count();
-        }
+        launch_GJK_EPA(a, b, result, time_1, time_2);
 # else
         result.intersecting = intersect_polygon_polygon(a, b, result);
 # endif /* GJK_EPA */
     }
 #else
 # ifdef GJK_EPA
+    launch_GJK_EPA(a, b, result, time_1, time_2);
+# endif /* GJK_EPA */
+#endif /* SAT */
+    return result;
+}
+
+void launch_GJK_EPA(RigidBody* a, RigidBody* b, Manifold& result, double& time_1, double& time_2) {
     Simplex s;
     SourcePoints points;
     auto start(steady_clock::now());
@@ -292,19 +359,18 @@ CollisionInfo detect_collision(RigidBody* a, RigidBody* b, double& time_1, doubl
 
         time_2 += duration_cast<microseconds>(t3 - t2).count();
     }
-# endif /* GJK_EPA */
-#endif /* SAT */
-    return result;
 }
 
-bool intersect_circle_circle(RigidBody* a, RigidBody* b, CollisionInfo& result) {
+
+bool intersect_circle_circle(RigidBody* a, RigidBody* b, Manifold& result) {
     double r_a(a->get_radius());
     double r_b(b->get_radius());
     Vector2 axis(b->get_p() - a->get_p());
 
     if (axis.norm() <= r_a + r_b) {
         result.normal = axis.normalized();
-        result.contact_point = (a->get_p() + b->get_p()) * 0.5;
+        result.contact_points[0] = (a->get_p() + b->get_p()) * 0.5;
+        result.contact_points[1] = result.contact_points[0];
         result.depth = r_a + r_b - axis.norm();
         return true;
     }
@@ -312,7 +378,7 @@ bool intersect_circle_circle(RigidBody* a, RigidBody* b, CollisionInfo& result) 
     return false;
 }
 
-bool intersect_circle_polygon(RigidBody* a, RigidBody* b, CollisionInfo& result) {
+bool intersect_circle_polygon(RigidBody* a, RigidBody* b, Manifold& result) {
     auto vertices(b->get_vertices());
     result.depth = INT_MAX;
     // Separation Axis Theorem
@@ -324,15 +390,17 @@ bool intersect_circle_polygon(RigidBody* a, RigidBody* b, CollisionInfo& result)
         Vector2 u(a->get_p() - normal * a->get_radius() - vertices[i]);
 
         double support_dist(dot2(u, normal));
-        if (support_dist >= 0)
+        if (support_dist >= 0) {
             return false;
+        }
 
         double projection(proj2(a->get_p(), A, edge).norm());
         if (projection < edge.norm() && dot2(u, edge) > 0) {
             if (b->contains_point(u + A)) {
                 result.depth = abs(support_dist);
                 result.normal = -normal;
-                result.contact_point = u + vertices[i] + result.normal * result.depth;
+                result.contact_points[0] = u + vertices[i] + result.normal * result.depth;
+                result.contact_points[1] = result.contact_points[0];
                 return true;
             }
         }else {
@@ -341,14 +409,16 @@ bool intersect_circle_polygon(RigidBody* a, RigidBody* b, CollisionInfo& result)
                 if (depth_prime < result.depth) {
                     result.normal = (A - a->get_p()).normalized();
                     result.depth = depth_prime;
-                    result.contact_point = A;
+                    result.contact_points[0] = A;
+                    result.contact_points[1] = result.contact_points[0];
                 }
             }else if (a->contains_point(B)) {
                 double depth_prime(a->get_radius() - (B - a->get_p()).norm());
                 if (depth_prime < result.depth) {
                     result.normal = (B - a->get_p()).normalized();
                     result.depth = depth_prime;
-                    result.contact_point = B;
+                    result.contact_points[0] = B;
+                    result.contact_points[1] = result.contact_points[0];
                 }
             }
         }
@@ -357,7 +427,7 @@ bool intersect_circle_polygon(RigidBody* a, RigidBody* b, CollisionInfo& result)
     return true;
 }
 
-bool intersect_polygon_polygon(RigidBody* a, RigidBody* b, CollisionInfo& result) {
+bool intersect_polygon_polygon(RigidBody* a, RigidBody* b, Manifold& result) {
     auto a_vertices(a->get_vertices());
     auto b_vertices(b->get_vertices());
     result.depth = INT_MAX;
@@ -376,13 +446,15 @@ bool intersect_polygon_polygon(RigidBody* a, RigidBody* b, CollisionInfo& result
                     if (current_depth < result.depth) {
                         result.depth = current_depth;
                         result.normal = normal;
-                        result.contact_point = vertex + result.normal * result.depth;
+                        result.contact_points[0] = vertex + result.normal * result.depth;
+                        result.contact_points[1] = result.contact_points[0];
                     }
                 }
             }
         }
-        if (all_in_front)
+        if (all_in_front) {
             return false;
+        }
     }
     double depth_2(1e6);
     Vector2 n_2;
@@ -406,13 +478,15 @@ bool intersect_polygon_polygon(RigidBody* a, RigidBody* b, CollisionInfo& result
                 }
             }
         }
-        if (all_in_front)
+        if (all_in_front) {
             return false;
+        }
     }
 
     if ((depth_2 >= result.depth && depth_2 != INT_MAX) || result.depth == INT_MAX) {
         result.normal = n_2;
-        result.contact_point = p_2;
+        result.contact_points[0] = p_2;
+        result.contact_points[1] = result.contact_points[0];
         result.depth = depth_2;
     }
     return true;
@@ -430,13 +504,15 @@ bool intersect_GJK(Simplex& s, SourcePoints& shape_points, RigidBody* a, RigidBo
         Vector2 supp_b(support(b, -D));
         Vector2 A(supp_a - supp_b);
 
-        if (dot2(A, D) < 0)
+        if (dot2(A, D) < 0) {
             return false;
+        }
 
         s.push_back(A);
         shape_points.push_back({supp_a, supp_b});
-        if (nearest_simplex(s, D, shape_points))
+        if (nearest_simplex(s, D, shape_points)) {
             return true;
+        }
     }
 
     return false;
@@ -470,9 +546,9 @@ bool nearest_simplex(Simplex& s, Vector2& D, SourcePoints& shape_points) {
         double cp1(cross2(s[1] - s[0], -s[0]));
         double cp2(cross2(s[2] - s[1], -s[1]));
         double cp3(cross2(s[0] - s[2], -s[2]));
-        if (!((cp1 < 0 || cp2 < 0 || cp3 < 0) && (cp1 >= 0 || cp2 >= 0 || cp3 >= 0)))
+        if (!((cp1 < 0 || cp2 < 0 || cp3 < 0) && (cp1 >= 0 || cp2 >= 0 || cp3 >= 0))) {
             return true;
-        else {
+        }else {
             Vector2 A(s[2]);
             Vector2 B(s[1]);
             Vector2 C(s[0]);
@@ -535,7 +611,7 @@ bool nearest_simplex(Simplex& s, Vector2& D, SourcePoints& shape_points) {
     return false;
 }
 
-void EPA(Simplex s, SourcePoints points, RigidBody* a, RigidBody* b, CollisionInfo& result) {
+void EPA(Simplex s, SourcePoints points, RigidBody* a, RigidBody* b, Manifold& result) {
     // Determine the winding of the simplex
     double winding(0);
     for (size_t i(0); i < s.size() - 1; ++i) {
@@ -554,14 +630,33 @@ void EPA(Simplex s, SourcePoints points, RigidBody* a, RigidBody* b, CollisionIn
             result.normal = e.normal;
             result.depth = d;
             Vector2 MTV(-e.normal * d);
-            result.contact_point = convex_combination(s,points,e.index).closest_a;
-            a->set_test(result.contact_point);
+            result.contact_points[0] = convex_combination(s, points, e.index).closest_a;
+     //       result.contact_points[1] = convex_combination(s, points, e.index).closest_b;
+            result.contact_points[1] = result.contact_points[0];
             break;
         }else {
             s.insert(s.begin() + e.index, supp);
             points.insert(points.begin() + e.index, {supp_a, supp_b});
         }
     }
+/*
+    watchdog = EPA_max_iterations;
+    const Vector2 contact_p1(result.contact_points[0]);
+    while (--watchdog) {
+        Edge e(closest_edge(s, clockwise));
+        Vector2 supp_a(support(a, e.normal, contact_p1));
+        Vector2 supp_b(support(b, -e.normal, contact_p1));
+        Vector2 supp(supp_a - supp_b);
+        double d(dot2(supp, e.normal));
+        if (d - e.distance < EPA_epsilon) {
+            result.contact_points[1] = convex_combination(s, points, e.index).closest_a;
+            break;
+        }else {
+            s.insert(s.begin() + e.index, supp);
+            points.insert(points.begin() + e.index, {supp_a, supp_b});
+        }
+    }
+    */
 }
 
 Edge closest_edge(Simplex s, const bool clockwise) {
@@ -594,7 +689,7 @@ Edge closest_edge(Simplex s, const bool clockwise) {
     return closest;
 }
 
-ClosestPoints convex_combination(Simplex s, SourcePoints shape_points, size_t index) {
+ClosestPoints convex_combination(Simplex s, SourcePoints shape_points, unsigned index) {
     ClosestPoints points;
 
     Vector2 p1_a(shape_points[index == 0 ? s.size() - 1 : index - 1][0]);

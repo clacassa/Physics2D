@@ -1,49 +1,45 @@
 #include <iostream>
 #include <vector>
 #include "render.h"
+#include "vector2.h"
 
 
-void render_point(SDL_Renderer* renderer, double x, double y) {
-    x *= RENDER_SCALE;
-    y = (SCENE_HEIGHT - y) * RENDER_SCALE;
-    SDL_RenderDrawPointF(renderer, x, y);
+namespace camera {
+    static Vector2 position = {SCENE_WIDTH * 0.5, SCENE_HEIGHT * 0.5};
 }
 
-void render_line(SDL_Renderer* renderer, double x1, double y1, double x2, double y2) {
-    x1 *= RENDER_SCALE;
-    y1 = (SCENE_HEIGHT - y1) * RENDER_SCALE;
-    x2 *= RENDER_SCALE;
-    y2 = (SCENE_HEIGHT - y2) * RENDER_SCALE;
-    SDL_RenderDrawLineF(renderer, x1, y1, x2, y2);
+void render_point(SDL_Renderer* renderer, Vector2 p) {
+    Vector2 px(camera::transform_world_to_screen(p));
+    SDL_RenderDrawPointF(renderer, px.x, px.y);
 }
 
-void render_filled_circle(SDL_Renderer *renderer, double x, double y, double radius) {
+void render_line(SDL_Renderer* renderer, Vector2 p1, Vector2 p2) {
+    Vector2 px1(camera::transform_world_to_screen(p1));
+    Vector2 px2(camera::transform_world_to_screen(p2));
+    SDL_RenderDrawLineF(renderer, px1.x, px1.y, px2.x, px2.y);
+}
+
+void render_filled_circle(SDL_Renderer *renderer, Vector2 center, double radius) {
     radius *= RENDER_SCALE;
-    x *= RENDER_SCALE;
-    // y = (SCENE_HEIGHT - y) * RENDER_SCALE;
-    y *= RENDER_SCALE;
-
+    Vector2 center_px(camera::transform_world_to_screen(center));
     radius = (int)radius;
-    x = (int)x;
-    y = (int)y;
 
     for (int w(0); w < radius * 2; ++w) {
         for (int h(0); h < radius * 2; ++h) {
             int dx(radius - w); // horizontal offset
             int dy(radius - h); // vertical offset
             if ((dx*dx + dy*dy) <= (radius * radius))
-                SDL_RenderDrawPoint(renderer, x + dx, y + dy);
+                SDL_RenderDrawPointF(renderer, center_px.x + dx, center_px.y + dy);
         }
     }
 }
 
 
-void render_fill_circle_fast(SDL_Renderer * renderer, double x_, double y_, double radius_) {
-    x_ *= RENDER_SCALE;
-    y_ = (SCENE_HEIGHT - y_) * RENDER_SCALE;
+void render_fill_circle_fast(SDL_Renderer * renderer, Vector2 center, double radius_) {
+    Vector2 center_px(camera::transform_world_to_screen(center));
     radius_ *= RENDER_SCALE;
-    int x(x_);
-    int y(y_);
+    int x(center_px.x);
+    int y(center_px.y);
     int radius(radius_);
 
     while (radius > 0) {
@@ -95,16 +91,15 @@ void render_fill_circle_fast(SDL_Renderer * renderer, double x_, double y_, doub
     }
 }
 
-void render_circle(SDL_Renderer* renderer, double x, double y, double radius) {
-    x *= RENDER_SCALE;
-    y = (SCENE_HEIGHT - y) * RENDER_SCALE;
+void render_circle(SDL_Renderer* renderer, Vector2 center, double radius) {
+    Vector2 center_px(camera::transform_world_to_screen(center));
     radius *= RENDER_SCALE;
 
     double error(-radius);
     double x_(radius - 0.5);
     double y_(0.5);
-    double cx(x - 0.5);
-    double cy(y - 0.5);
+    double cx(center_px.x - 0.5);
+    double cy(center_px.y - 0.5);
 
     while (x_ >= y_) {
         SDL_RenderDrawPoint(renderer, (int)(cx + x_), (int)(cy + y_));
@@ -134,13 +129,45 @@ void render_circle(SDL_Renderer* renderer, double x, double y, double radius) {
     }
 }
 
-void render_rectangle(SDL_Renderer* renderer, double x, double y, double w, double h) {
-    x *= RENDER_SCALE;
-    y = (SCENE_HEIGHT - y) * RENDER_SCALE;
+void render_rectangle(SDL_Renderer* renderer, Vector2 center, double w, double h) {
+    Vector2 px(camera::transform_world_to_screen(center));
     w *= RENDER_SCALE;
     h *= RENDER_SCALE;
 
-    SDL_FRect rect{(float)x, (float)y, (float)w, (float)h};
+    SDL_FRect rect{(float)px.x, (float)px.y, (float)w, (float)h};
     SDL_RenderDrawRectF(renderer, &rect);
 }
 
+Vector2 camera::transform_world_to_screen(Vector2 world_p) {
+    Vector2 screen_p;
+    world_p -= camera::position;
+    screen_p.x = world_p.x * RENDER_SCALE + SCREEN_WIDTH / 2.0;
+    screen_p.y = -world_p.y * RENDER_SCALE + SCREEN_HEIGHT / 2.0;
+
+    return screen_p;
+}
+
+Vector2 camera::transform_screen_to_world(int px, int py) {
+    Vector2 world_p;
+    world_p.x = ((double)px - SCREEN_WIDTH / 2.0) / RENDER_SCALE;
+    world_p.y = (SCREEN_HEIGHT / 2.0 - py) / RENDER_SCALE;
+    world_p += camera::position;
+
+    return world_p;
+}
+
+void camera::translate_left() {
+    camera::position.x -= 50 / RENDER_SCALE;
+}
+
+void camera::translate_down() {
+    camera::position.y -= 50 / RENDER_SCALE;
+}
+
+void camera::translate_right() {
+    camera::position.x += 50 / RENDER_SCALE;
+}
+
+void camera::translate_up() {
+    camera::position.y += 50 / RENDER_SCALE;
+}

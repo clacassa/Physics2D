@@ -1,12 +1,15 @@
 #include <iostream>
 #include <array>
+#include "SDL_render.h"
 #include "rigid_body.h"
 #include "collision.h"
 #include "utils.h"
+#include "render.h"
 #include "config.h"
+#include "vector2.h"
 
 
-RigidBody::RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, bool movable_, bool enabled_, 
+RigidBody::RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, BodyType type_, bool enabled_, 
         Vertices vertices)
 :   
 #ifdef Verlet
@@ -23,23 +26,30 @@ RigidBody::RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, bool movabl
     inv_m(1 / m),
     I(I_),
     inv_I(1 / I),
-    e(0.6),
-    movable(movable_),
+    e(stl_steel_restitution),
+    m_type(type_),
     enabled(enabled_),
     m_vertices(vertices),
     max_track_length(1e3),
-    color{255, 255, 255, 255},
     id(0),
     static_friction(true)
 {
-    if (!movable) {
+    if (is_static()) {
         inv_m = 0;
         inv_I = 0;
         v = Vector2::zero();
     }
+    switch (m_type) {
+        case STATIC:
+            color = {255, 255, 255, 255};
+            break;
+        case DYNAMIC:
+            color = dynamic_body_color;
+            break;
+    }
 }
 
-RigidBody::RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, bool movable_, bool enabled_)
+RigidBody::RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, BodyType type_, bool enabled_)
 :   
 #ifdef VERLET
     p_old(pos),
@@ -55,26 +65,35 @@ RigidBody::RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, bool movabl
     inv_m(1 / m),
     I(I_),
     inv_I(1 / I),
-    e(0.6),
-    movable(movable_),
+    e(stl_steel_restitution),
+    m_type(type_),
     enabled(enabled_),
     max_track_length(1e3),
     color{255, 255, 255, 255},
     id(0),
     static_friction(true)
 {
-    if (!movable) {
+    if (is_static()) {
         inv_m = 0;
         inv_I = 0;
         v = Vector2::zero();
+    }
+    switch (m_type) {
+        case STATIC:
+            color = {255, 255, 255, 255};
+            break;
+        case DYNAMIC:
+            color = dynamic_body_color;
+            break;
     }
 }
 
 RigidBody::~RigidBody() {}
 
 void RigidBody::step(double dt) {
-    if (!movable)
+    if (is_static()) {
         return;
+    }
 
     // Newton 2nd Law
     a = f / m;
@@ -125,24 +144,28 @@ void RigidBody::reset_forces() {
 
 void RigidBody::move(const Vector2 delta_p, bool update_AABB) {
     p += delta_p;
-    if (update_AABB)
+    if (update_AABB) {
         update_bounding_box();
+    }
 }
 
 void RigidBody::rotate(const double angle, bool update_AABB) {
     theta += angle;
-    if (update_AABB)
+    if (update_AABB) {
         update_bounding_box();
+    }
 }
 
-void RigidBody::velocity_impulse(const Vector2 impulse) {
-    if (movable)
+void RigidBody::linear_impulse(const Vector2 impulse) {
+    if (!is_static()) {
         v += impulse;
+    }
 }
 
 void RigidBody::angular_impulse(const double impulse) {
-    if (movable)
+    if (!is_static()) {
         omega += impulse;
+    }
 }
 
 double RigidBody::energy(bool gravity_enabled) const {
@@ -155,27 +178,32 @@ double RigidBody::k_energy() const {
 }
 
 double RigidBody::p_energy() const {
-    return movable * m * g * p.y;
+    return !is_static() * m * g * p.y;
 }
 
 void RigidBody::draw_forces(SDL_Renderer* renderer) const {
     SDL_SetRenderDrawColor(renderer, 255, 0, 255, 255);
-    render_line(renderer, p.x, p.y, p.x + f.x / 50.0, p.y + f.y / 50.0);
+    render_line(renderer, p, p + f / 50.0);
 }
 
-void RigidBody::draw_trace(SDL_Renderer* renderer) {
+void RigidBody::draw_trace(SDL_Renderer* renderer, bool update_trace) {
     if (max_track_length > 0) {
-        if (track.size() == max_track_length) {
-            track.pop_front();
+        if (update_trace) {
+            if (track.size() == max_track_length) {
+                track.pop_front();
+            }
+            if (track.size() < max_track_length) {
+                track.push_back(p);
+            }
         }
-        if (track.size() < max_track_length)
-            track.push_back(p);
 
-        for (size_t i(0); i < track.size() - 1; ++i) {
-            int alpha(255.0 / track.size() * i);
-            SDL_SetRenderDrawColor(renderer, 255, 0, 0, alpha);
-            // render_filled_circle(renderer, point.x, point.y, 1 / (double)RENDER_SCALE);
-            render_line(renderer, track[i].x, track[i].y, track[i + 1].x, track[i + 1].y);
+        if (track.size() > 1) {
+            for (size_t i(0); i < track.size() - 1; ++i) {
+                int alpha(255.0 / track.size() * i);
+                SDL_SetRenderDrawColor(renderer, 255, 0, 0, alpha);
+                // render_filled_circle(renderer, point.x, point.y, 1 / (double)RENDER_SCALE);
+                render_line(renderer, track[i], track[i + 1]);
+            }
         }
     }
 }
@@ -185,27 +213,34 @@ void RigidBody::colorize(const SDL_Color color) {
 }
 
 void RigidBody::reset_color() {
-    color = {255, 255, 255, 255};
+    switch (m_type) {
+        case STATIC:
+            color = {255, 255, 255, 255};
+            break;
+        case DYNAMIC:
+            color = dynamic_body_color;
+            break;
+    }
 }
 
 std::string RigidBody::dump(bool gravity_enabled) const {
-    std::string body_info("Body informations : \n-----------------\n");
-    std::string E_m("Mechanical energy : " + std::to_string(energy(gravity_enabled)) + " J\n");
-    std::string E_k("kinetic energy : " + std::to_string(k_energy()) + " J\n");
-    std::string E_pp("potential energy : " + std::to_string(p_energy()) + " J\n");
-    std::string mass("mass : " + truncate_to_string(m, 1000) + " kg\n");
-    std::string x("x : " + truncate_to_string(p.x, 1000) + " m\n");
-    std::string y("y : " + truncate_to_string(p.y, 1000) + " m\n");
-    std::string vx("vx : " + truncate_to_string(v.x, 1000) + " m/s\n");
-    std::string vy("vy : " + truncate_to_string(v.y, 1000) + " m/s\n");
-    std::string v_theta("omega : " + truncate_to_string(omega, 1000) + " rad/s\n");
+    std::string body_info("Selected body infos : \n-----------------\n");
+    std::string E_m("Mechanical energy : " + truncate_to_string(energy(gravity_enabled)) + " J\n");
+    std::string E_k("kinetic energy : " + truncate_to_string(k_energy()) + " J\n");
+    std::string E_pp("potential energy : " + truncate_to_string(p_energy()) + " J\n");
+    std::string mass("mass : " + truncate_to_string(m) + " kg\n");
+    std::string x("x : " + truncate_to_string(p.x) + " m\n");
+    std::string y("y : " + truncate_to_string(p.y) + " m\n");
+    std::string vx("vx : " + truncate_to_string(v.x) + " m/s\n");
+    std::string vy("vy : " + truncate_to_string(v.y) + " m/s\n");
+    std::string v_theta("omega : " + truncate_to_string(omega) + " rad/s\n");
 
-    return body_info + E_m + mass + x + y + vx + vy + v_theta;
+    return E_m + mass + x + y + vx + vy + v_theta;
 }
 
 
-Ball::Ball(Vector2 vel, Vector2 pos, double m, double r_, bool movable, bool enabled)
-:   RigidBody(vel, pos, m, 0.5 * m * r_ * r_, movable, enabled),
+Ball::Ball(Vector2 vel, Vector2 pos, double m, double r_, BodyType type, bool enabled)
+:   RigidBody(vel, pos, m, 0.5 * m * r_ * r_, type, enabled),
     r(r_)
 {}
 
@@ -219,58 +254,66 @@ double Ball::get_radius() const {
 }
 
 void Ball::draw(SDL_Renderer* renderer) const {
-    if (movable && enabled) {
+    if (!is_static() && enabled) {
         SDL_SetRenderDrawColor(renderer, 0.5 * color.r, 0.5 * color.g, 0.5 * color.b, 0.5*color.a);
-        render_fill_circle_fast(renderer, p.x, p.y, r);
+        render_fill_circle_fast(renderer, p, r);
         SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-        render_circle(renderer, p.x, p.y, r);
-        render_line(renderer, p.x, p.y, p.x + r * cos(theta), p.y + r * sin(theta));
+        render_circle(renderer, p, r);
+        render_line(renderer, p, {p.x + r * cos(theta), p.y + r * sin(theta)});
     }else {
-        if (enabled)
+        if (enabled) {
             SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-        else
+        }else {
             SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a * 0.5);
-        render_circle(renderer, p.x, p.y, r);
-        if (!movable) {
+        }
+        render_circle(renderer, p, r);
+        if (is_static()) {
             SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a * 0.5);
-            render_line(renderer, p.x, p.y, p.x + r * cos(PI / 4.0), p.y + r * sin(PI / 4.0));
-            render_line(renderer, p.x, p.y, p.x + r * cos(0.75 * PI), p.y + r * sin(0.75 * PI));
-            render_line(renderer, p.x, p.y, p.x + r * cos(0.75 * PI), p.y - r * sin(0.75 * PI));
-            render_line(renderer, p.x, p.y, p.x + r * cos(PI / 4.0), p.y - r * sin(PI / 4.0));
+            render_line(renderer, p, {p.x + r * cos(PI / 4.0), p.y + r * sin(PI / 4.0)});
+            render_line(renderer, p, {p.x + r * cos(0.75 * PI), p.y + r * sin(0.75 * PI)});
+            render_line(renderer, p, {p.x + r * cos(0.75 * PI), p.y - r * sin(0.75 * PI)});
+            render_line(renderer, p, {p.x + r * cos(PI / 4.0), p.y - r * sin(PI / 4.0)});
         }
     }
-    
+#ifdef DEBUG
+    //SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+    //render_fill_circle_fast(renderer, m_debug1, 3 / RENDER_SCALE);
+    //render_fill_circle_fast(renderer, m_debug2, 3 / RENDER_SCALE);
+#endif
 }
 
 void Ball::handle_wall_collisions() {
-    CollisionInfo collision;
+    Manifold collision_h, collision_v;  // We separate horizontal and vertical walls collision
     if (p.x - r < 0) {
-        collision.normal = {-1, 0};
-        collision.depth = r - p.x;
+        collision_h.normal = {-1, 0};
+        collision_h.depth = r - p.x;
         p.x = r;
-        collision.contact_point = {0, p.y};
+        collision_h.contact_points[0] = {0, p.y};
     }else if (p.x + r > SCENE_WIDTH) {
-        collision.normal = {1, 0};
-        collision.depth = p.x + r - SCENE_WIDTH;
+        collision_h.normal = {1, 0};
+        collision_h.depth = p.x + r - SCENE_WIDTH;
         p.x = SCENE_WIDTH - r;
-        collision.contact_point = {SCENE_WIDTH, p.y};
+        collision_h.contact_points[0] = {SCENE_WIDTH, p.y};
     }
     if (p.y - r < 0) {
-        if (r - p.y > collision.depth) {
-            collision.normal = {0, -1};
-            collision.contact_point = {p.x, 0};
-        }
+        collision_v.normal = {0, -1};
+        collision_v.depth = r - p.y;
         p.y = r;
+        collision_v.contact_points[0] = {p.x, 0};
     }else if (p.y + r > SCENE_HEIGHT) {
-        if (p.y + r - SCENE_HEIGHT > collision.depth) {
-            collision.normal = {0, 1};
-            collision.contact_point = {p.x, SCENE_HEIGHT};
-        }
+        collision_v.normal = {0, 1};
+        collision_v.depth = p.y + r - SCENE_HEIGHT;
         p.y = SCENE_HEIGHT - r;
+        collision_v.contact_points[0] = {p.x, SCENE_HEIGHT};
     }
 
-    if (collision.normal != Vector2::zero()) {
-        solve_wall_collision(this, collision);
+    collision_h.contact_points[1] = collision_h.contact_points[0];
+    collision_v.contact_points[1] = collision_v.contact_points[0];
+    if (collision_h.normal != Vector2::zero()) {
+        solve_wall_collision(this, collision_h);
+    }
+    if (collision_v.normal != Vector2::zero()) {
+        solve_wall_collision(this, collision_v);
     }
 }
 
@@ -285,8 +328,8 @@ bool Ball::contains_point(const Vector2 point) const {
 
 
 Rectangle::Rectangle(Vector2 vel, Vector2 pos, double m, double w_, double h_, Vertices vertices, 
-        bool movable, bool enabled)
-:   RigidBody(vel, pos, m, 1/12.0 * m * (w_ * w_ + h_ * h_), movable, enabled, vertices),
+        BodyType type, bool enabled)
+:   RigidBody(vel, pos, m, 1/12.0 * m * (w_ * w_ + h_ * h_), type, enabled, vertices),
     w(w_),
     h(h_)
 {
@@ -301,19 +344,31 @@ void Rectangle::draw(SDL_Renderer* renderer) const {
     Vector2 C(m_vertices[2]);
     Vector2 D(m_vertices[3]);
 
-    if (!movable) {
-        SDL_SetRenderDrawColor(renderer, 128, 128, 128, 255);
-        render_line(renderer, A.x, A.y, C.x, C.y);
-        render_line(renderer, B.x, B.y, D.x, D.y);
+    if (is_static() && enabled) {
+        SDL_SetRenderDrawColor(renderer, 0.75 * color.r, 0.75 * color.g, 0.75 * color.b, color.a);
+        render_line(renderer, A, C);
+        render_line(renderer, B, D);
     }
-    if (enabled)
+    if (enabled) {
         SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-    else
-        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 0.5 * color.a);
-    render_line(renderer, A.x, A.y, B.x, B.y);
-    render_line(renderer, B.x, B.y, C.x, C.y);
-    render_line(renderer, C.x, C.y, D.x, D.y);
-    render_line(renderer, D.x, D.y, A.x, A.y);
+    }else {
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 0.25 * color.a);
+    }
+    // Draw outline
+    render_line(renderer, A, B);
+    render_line(renderer, B, C);
+    render_line(renderer, C, D);
+    render_line(renderer, D, A);
+    // Fill the inside
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 0.1 * color.a);
+    const Vector2 edge(C - B);
+    const double len(edge.norm());
+    const Vector2 n(edge.normalized());
+    const unsigned width_px((len * RENDER_SCALE));
+    const double dw(1 / RENDER_SCALE);
+    for (unsigned i(0); i < width_px; ++i) {
+        render_line(renderer, B + n * i * dw, A + n * i * dw);
+    }
     // SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
     // render_line(renderer, m_aabb.min.x, m_aabb.max.y, m_aabb.min.x, m_aabb.min.y);
     // render_line(renderer, m_aabb.min.x, m_aabb.min.y, m_aabb.max.x, m_aabb.min.y);
@@ -326,78 +381,98 @@ void Rectangle::draw(SDL_Renderer* renderer) const {
 
     // SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
     // render_line(renderer, 0, 0, m_t.x / 1.0, m_t.y / 1.0);
+#ifdef DEBUG
+    //SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+    //render_fill_circle_fast(renderer, m_debug1, 3 / RENDER_SCALE);
+    //render_fill_circle_fast(renderer, m_debug2, 3 / RENDER_SCALE);
+#endif /* DEBUG */
 }
 
 void Rectangle::handle_wall_collisions() {
-    CollisionInfo collision;
-    Vector2 r1;
-    Vector2 r2;
+    Manifold collision_h, collision_v;
+    Vector2 r1_h, r2_h;
+    Vector2 r1_v, r2_v;
     // int contacts(0);
     if (m_aabb.min.x <= 0) {
-        collision.normal = {-1, 0};
+        collision_h.normal = {-1, 0};
         for (auto v : m_vertices) {
             if (v.x <= 0) {
-                if (r1 != Vector2::zero()) {
-                    r2 = v - p;
+                if (r1_h != Vector2::zero()) {
+                    r2_h = v - p;
                     break;
                 }
-                r1 = v - p;
+                r1_h = v - p;
             }
+        }
+        if (r2_h == Vector2::zero()) {
+            r2_h = r1_h;
         }
         p.x -= m_aabb.min.x;
     }else if (m_aabb.max.x >= SCENE_WIDTH) {
-        collision.normal = {1, 0};
+        collision_h.normal = {1, 0};
         for (auto v : m_vertices) {
             if (v.x >= SCENE_WIDTH) {
-                if (r1 != Vector2::zero()) {
-                    r2 = v - p;
+                if (r1_h != Vector2::zero()) {
+                    r2_h = v - p;
                     break;
                 }
-                r1 = v - p;
+                r1_h = v - p;
             }
+        }
+        if (r2_h == Vector2::zero()) {
+            r2_h = r1_h;
         }
         p.x -= (m_aabb.max.x - SCENE_WIDTH);
     }
     if (m_aabb.min.y <= 0) {
-        collision.normal = {0, -1};
+        collision_v.normal = {0, -1};
         for (auto v : m_vertices) {
             if (v.y <= 0) {
-                if (r1 != Vector2::zero()) {
-                    r2 = v - p;
+                if (r1_v != Vector2::zero()) {
+                    r2_v = v - p;
                     break;
                 }
-                r1 = v - p;
+                r1_v = v - p;
             }
+        }
+        if (r2_v == Vector2::zero()) {
+            r2_v = r1_v;
         }
         p.y -= m_aabb.min.y;
     }else if (m_aabb.max.y >= SCENE_HEIGHT) {
-        collision.normal = {0, 1};
+        collision_v.normal = {0, 1};
         for (auto v : m_vertices) {
             if (v.y >= SCENE_HEIGHT) {
-                if (r1 != Vector2::zero()) {
-                    r2 = v - p;
+                if (r1_v != Vector2::zero()) {
+                    r2_v = v - p;
                     break;
                 }
-                r1 = v - p;
+                r1_v = v - p;
             }
+        }
+        if (r2_v == Vector2::zero()) {
+            r2_v = r1_v;
         }
         p.y -= (m_aabb.max.y - SCENE_HEIGHT);
     }
 
-    if (collision.normal != Vector2::zero()) {
-        collision.contact_point = p + r1;
-        collision.contact_points.push_back(p + r1);
-        if (r2 != Vector2::zero())
-            collision.contact_points.push_back(p + r2);
-        solve_wall_collision(this, collision);
+    if (collision_h.normal != Vector2::zero()) {
+        collision_h.contact_points[0] = p + r1_h;
+        collision_h.contact_points[1] = p + r2_h;
+        solve_wall_collision(this, collision_h);
+    }
+    if (collision_v.normal != Vector2::zero()) {
+        collision_v.contact_points[0] = p + r1_v;
+        collision_v.contact_points[1] = p + r2_v;
+        solve_wall_collision(this, collision_v);
     }
 }
 
 void Rectangle::update_bounding_box() {
-    Vector2 A(-w/2 * cos(theta) - h/2 * sin(theta), -w/2 * sin(theta) + h/2 * cos(theta));
-    Vector2 B(-w/2 * cos(theta) + h/2 * sin(theta), -w/2 * sin(theta) - h/2 * cos(theta));
-    Vector2 C(w/2 * cos(theta) + h/2 * sin(theta), w/2 * sin(theta) - h/2 * cos(theta));
-    Vector2 D(w/2 * cos(theta) - h/2 * sin(theta), w/2 * sin(theta) + h/2 * cos(theta));
+    Vector2 A(Vector2(-w/2, -h/2).rotated(theta));
+    Vector2 B(Vector2(-w/2, h/2).rotated(theta));
+    Vector2 C(Vector2(w/2, h/2).rotated(theta));
+    Vector2 D(Vector2(w/2, -h/2).rotated(theta));
 
     m_vertices[0] = p + A;
     m_vertices[1] = p + B;
@@ -411,14 +486,18 @@ void Rectangle::update_bounding_box() {
     double y_min(0);
     double y_max(0);
     for (auto v : local_vertices) {
-        if (v.x > x_max)
+        if (v.x > x_max) {
             x_max = v.x;
-        if (v.x < x_min)
+        }
+        if (v.x < x_min) {
             x_min = v.x;
-        if (v.y > y_max)
+        }
+        if (v.y > y_max) {
             y_max = v.y;
-        if (v.y < y_min)
+        }
+        if (v.y < y_min) {
             y_min = v.y;
+        }
     }
 
     m_aabb.min = p + Vector2{x_min, y_min};

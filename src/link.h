@@ -1,15 +1,18 @@
 #ifndef LINK_H
 #define LINK_H
 
+#include <SDL_render.h>
 #include <deque>
-#include "rigid_body.h"
+#include <vector>
+#include "vector2.h"
 
+class RigidBody;
 
 class Spring {
 public:
     enum DampingType { UNDAMPED = 0, UNDERDAMPED, CRIT_DAMPED, OVERDAMPED };
 
-    Spring(RigidBody* A_, RigidBody* B_, double stiffness, double length, DampingType damping);
+    Spring(RigidBody* A_, RigidBody* B_, double length, float stiffness, DampingType damping);
     void apply();
     void draw(SDL_Renderer* renderer);
     double energy() const;
@@ -17,12 +20,14 @@ public:
 private:
     RigidBody* A;
     RigidBody* B;
-    double k; // stiffness
     double l_0; // rest length
+    float k; // stiffness
     double critical_damping; // c_crit = 2m sqrt(k / m)
-    double actual_damping; // damping coefficient
+    double actual_damping; // damping coefficient lambda
     Vector2 equilibrum_pos;
     std::vector<double> position_curve;
+
+    void draw_coil(SDL_Renderer* renderer, Vector2 start, Vector2 direction, double height) const; 
 };
 
 // Obsolete

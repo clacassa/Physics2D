@@ -1,23 +1,29 @@
 OUT = physics 
 CXX = g++
 CXXFLAGS = -g -Wall -std=c++11
-INCLUDE =
+INCLUDE = -I$(IMGUI_DIR)
 LDLIBS = 
-SRC_DIR = src
-SRC_FILES = main.cc control.cc system_state.cc rigid_body.cc collision.cc \
-		   editor.cc render.cc utils.cc link.cc vector2.cc
-CXXFILES = $(SRC_FILES:%=$(SRC_DIR)/%)
-OFILES = $(SRC_FILES:.cc=.o)
+SRC_DIR = src/
+OBJ_DIR = obj/
+CXXFILES = $(wildcard $(SRC_DIR)*.cc)
+OFILES = $(patsubst $(SRC_DIR)%.cc, $(OBJ_DIR)%.o, $(CXXFILES))
+CONFIG_MSG = "Configuration: Release"
 UNAME_S := $(shell uname -s)
 
+# ImGui library files
+IMGUI_DIR = imgui-docking/
+IMGUI_SRC = $(wildcard $(IMGUI_DIR)imgui*.cpp)
+#IMGUI_OBJ = $(addsuffix .o, $(basename $(notdir $(IMGUI_SRC))))
+IMGUI_OBJ = $(patsubst $(IMGUI_DIR)%.cpp, $(OBJ_DIR)%.o, $(IMGUI_SRC))
+
 ifeq ($(UNAME_S), Linux)
-	ECHO_MESSAGE = "Linux"
+	PLATFORM_MSG = "Linux"
 	INCLUDE += `pkg-config --cflags sdl2`
 	LDLIBS = `pkg-config --libs sdl2` -lSDL2_image -lSDL2_ttf
 endif
 
 ifeq ($(OS), Windows_NT)
-	ECHO_MESSAGE = "MinGW"
+	PLATFORM_MSG = "MinGW"
 	INCLUDE += `pkg-config --cflags sdl2_ttf sdl2_image`
 	LDLIBS = `pkg-config --libs sdl2 sdl2_ttf sdl2_image` -mconsole
 endif
@@ -26,56 +32,47 @@ endif
 # BUILD RULES
 #------------------------
 
-all: $(OUT)
-	@echo "-----------------------------"
-	@echo "Build complete for" $(ECHO_MESSAGE)
+all: setup $(OUT)
+	@echo "\e[32mBuild complete\e[0m for" $(PLATFORM_MSG)
+	@echo $(CONFIG_MSG)
 
-$(OUT): $(OFILES)
-	$(CXX) $(CXXFLAGS) $(INCLUDE) $(OFILES) -o $@ $(LDLIBS)
+$(OUT): $(OFILES) $(IMGUI_OBJ)
+	$(CXX) $(CXXFLAGS) $(INCLUDE) $^ -o $@ $(LDLIBS)
+	@echo "------------------------"
 
-%.o: $(SRC_DIR)/%.cc
+$(OBJ_DIR)%.o: $(IMGUI_DIR)%.cpp
+	$(CXX) $(CXXFLAGS) $(INCLUDE) -c $< -o $@
+
+$(OBJ_DIR)%.o: $(SRC_DIR)%.cc
 	$(CXX) $(CXXFLAGS) $(INCLUDE) -c $< -o $@
 
 #-------------------------
 # CUSTOM RULES
 #-------------------------
 
+.PHONY: debug
+debug: CXXFLAGS += -DDEBUG -O0
+debug: CONFIG_MSG = "Configuration: Debug"
+debug: all
+
+.PHONY: setup
+setup:
+	@mkdir -p $(OBJ_DIR)
+
 .PHONY: run
-run: $(OUT)
+run: all
 	./$(OUT)
 
 .PHONY: clean
 clean:
 	@rm -f $(OUT) $(OFILES)
+	
+.PHONY: remake
+remake: clean all
 
-.PHONY: depend
-depend:
-	@echo " *** UPDATING DEPENDENCIES ***"
-	@(sed '/^# DO NOT DELETE THIS LINE/q' Makefile && \
-		$(CXX) -MM $(CXXFLAGS) $(CXXFILES) | \
-		egrep -v "/usr/include" \
-	) > Makefile.new
-	@mv Makefile.new Makefile
+#-------------------------
+# DEPENDENCIES GENERATION
+#-------------------------
 
-#
-#
-#
-# DO NOT DELETE THIS LINE
-main.o: src/main.cc src/control.h src/vector2.h src/system_state.h \
- src/render.h src/rigid_body.h src/collision.h src/link.h src/editor.h \
- src/utils.h
-control.o: src/control.cc src/control.h src/vector2.h
-system_state.o: src/system_state.cc src/system_state.h src/render.h \
- src/rigid_body.h src/vector2.h src/collision.h src/link.h src/utils.h \
- src/config.h
-rigid_body.o: src/rigid_body.cc src/rigid_body.h src/render.h \
- src/vector2.h src/collision.h src/utils.h src/config.h
-collision.o: src/collision.cc src/collision.h src/rigid_body.h \
- src/render.h src/vector2.h src/config.h
-editor.o: src/editor.cc src/editor.h src/vector2.h src/render.h \
- src/utils.h
-render.o: src/render.cc src/render.h
-utils.o: src/utils.cc src/utils.h src/render.h
-link.o: src/link.cc src/link.h src/rigid_body.h src/render.h \
- src/vector2.h
-vector2.o: src/vector2.cc src/vector2.h
+CXXFLAGS += -MMD
+-include $(OFILES:.o=.d)
