@@ -45,9 +45,9 @@ void Spring::apply() {
     // Calculate and apply spring forces on each body
     const double callback(k * (l - l_0));
     const double damping(actual_damping * dot2((A->get_v() - B->get_v()), n));
-    if (B->is_static())
+    if (!B->is_dynamic())
         A->subject_to_force(-n * (callback + damping));
-    else if (A->is_static())
+    else if (!A->is_dynamic())
         B->subject_to_force(n * (callback + damping));
     else {
         A->subject_to_force(-n * (callback + damping) * 0.5);
@@ -68,7 +68,7 @@ void Spring::draw(SDL_Renderer* renderer) {
     const Vector2 B_pos(B->get_p());
     const Vector2 axis(A_pos - B_pos);
     const double length(axis.norm());
-    const unsigned n_coils(l_0 * RENDER_SCALE / 20);
+    const unsigned n_coils(l_0 * 10);
 
     if (n_coils > 0) {
         const double anchor_height((length / (double)n_coils) / 2.0);
