@@ -1,8 +1,7 @@
 #include "control.h"
 
 Control::Simulation::Simulation()
-:   running(false),
-    slow_motion(false)
+:   running(false)
 {}
 
 Control::Editor::Editor()

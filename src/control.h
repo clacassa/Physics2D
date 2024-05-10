@@ -6,7 +6,6 @@
 struct Control {
     struct Simulation {
         bool running;
-        bool slow_motion;
 
         Simulation();
     };
