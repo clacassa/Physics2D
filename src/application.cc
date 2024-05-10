@@ -1,4 +1,3 @@
-#include <cfloat>
 #include <imgui.h>
 #include <imgui_impl_sdl2.h>
 #include <imgui_impl_sdlrenderer2.h>
@@ -13,8 +12,8 @@
 #include "render.h"
 #include "config.h"
 
-constexpr unsigned SCREEN_FPS(60);
-constexpr unsigned SCREEN_TICKS_PER_FRAME(1000 / SCREEN_FPS);
+// constexpr unsigned SCREEN_FPS(60);
+const unsigned SCREEN_TICKS_PER_FRAME(1000 / SCREEN_FPS);
 constexpr unsigned STEPS_PER_FRAME(50);
 
 Application::Application(SDL_Window* window, SDL_Renderer* renderer, double w, double h,
@@ -26,8 +25,7 @@ Application::Application(SDL_Window* window, SDL_Renderer* renderer, double w, d
     m_font_main(font),
     m_exit_status(0),
     m_editor(m_renderer, m_font_main, SCENE_WIDTH / 50),
-    delta_time(0),
-    option_track_motion(false)
+    delta_time(0)
 {
     // ImGui initialisation
     IMGUI_CHECKVERSION();
@@ -62,6 +60,8 @@ int Application::run() {
         return m_exit_status;
     }
 
+    camera::translate_x(SCREEN_WIDTH * 0.5);
+    camera::translate_y(SCREEN_HEIGHT * 0.5);
     VTextLayout left_panel(m_renderer, 10, 10);
     left_panel.add_texture(text_color, m_font_main);
     left_panel.add_texture(text_color, m_font_main);
@@ -105,11 +105,11 @@ int Application::run() {
 
         // Simulation
         if (m_ctrl.simulation.running) {
-            if (!m_ctrl.simulation.slow_motion) {
-                m_world.process(delta_time / 1000.0, STEPS_PER_FRAME, false);
-            }else {
-                m_world.process(delta_time / 10000.0, STEPS_PER_FRAME, false);
+            double dt(delta_time / 1000.0);
+            if (m_settings.slow_motion) {
+                dt /= 10.0;
             }
+            m_world.process(dt, STEPS_PER_FRAME, m_settings, true);
         }
 
         // Rendering
@@ -118,24 +118,11 @@ int Application::run() {
         SDL_SetRenderDrawColor(m_renderer, bg_color.r, bg_color.g, bg_color.b, bg_color.a);
         SDL_RenderClear(m_renderer);
 
-        m_world.render(m_renderer, m_ctrl.simulation.running, option_track_motion);
+        m_world.render(m_renderer, m_ctrl.simulation.running, m_settings);
         if (m_ctrl.editor.active) {
             m_editor.render();
-            m_editor.imgui_controls(&m_ctrl.editor.active);
+            m_editor.show_controls(&m_ctrl.editor.active);
         }
-
-        // Display FPS counter
-        // std::stringstream time_text;
-        // time_text.str("");
-        // time_text << "Average FPS (cap " << SCREEN_FPS << ") : " << floor(avg_fps)
-        //           << "\nDelta time : " << delta_time << " ms"
-        //           << "\nFreq : " << STEPS_PER_FRAME * avg_fps << " Hz"
-        //           << "\nSteps : " << STEPS_PER_FRAME
-        //           << "\n\n" << (m_ctrl.simulation.running ? "RUNNING" : "PAUSED");
-        // left_panel.load_text_and_render(1, time_text.str());
-        // // Display simulation data
-        // if (!m_ctrl.editor.active)
-        //     left_panel.load_text_and_render(2, m_world.dump_metrics());
 
         if (m_ctrl.editor.adding_spring) {
             SDL_SetRenderDrawColor(m_renderer, 0, 128, 255, 255);
@@ -143,9 +130,9 @@ int Application::run() {
         }
 
         // ImGui::ShowDemoWindow();
-        //imgui_menubar();
-        imgui_main_overlay(avg_fps);
-        imgui_options_panel();
+        // show_menubar();
+        show_main_overlay(avg_fps);
+        show_options_panel();
         bool property_open(true);
         show_property_editor(&property_open);
         ImGui::Render();
@@ -205,11 +192,11 @@ void Application::handle_event(SDL_Event& e, const double dt) {
                 m_ctrl.simulation.running = false;
                 break;
             case SDLK_EQUALS:
-                m_ctrl.simulation.slow_motion = !m_ctrl.simulation.slow_motion;
+                m_settings.slow_motion = !m_settings.slow_motion;
                 break;
             case SDLK_s:
                 if (!m_ctrl.simulation.running)
-                    m_world.process(dt / 1000, STEPS_PER_FRAME);
+                    m_world.process(dt / 1000, STEPS_PER_FRAME, m_settings);
                 break;
             case SDLK_g:
                 m_world.toggle_gravity(); break;
@@ -236,16 +223,16 @@ void Application::handle_event(SDL_Event& e, const double dt) {
             case SDLK_z:
                 m_world.rotate_focused_body(PI / 50); break;
             case SDLK_h:
-                camera::translate_left();
+                camera::translate_x(-50);
                 break;
             case SDLK_j:
-                camera::translate_down();
+                camera::translate_y(-50);
                 break;
             case SDLK_k:
-                camera::translate_up();
+                camera::translate_y(50);
                 break;
             case SDLK_l:
-                camera::translate_right();
+                camera::translate_x(50);
                 break;
             case SDLK_LESS:
                 if (m_ctrl.editor.active) {
@@ -321,6 +308,11 @@ void Application::handle_event(SDL_Event& e, const double dt) {
                 RENDER_SCALE /= 1.1;
             }
         }
+        int x, y;
+        SDL_GetMouseState(&x, &y);
+        Vector2 offset(camera::transform_world_to_screen(m_ctrl.input.pointer) - Vector2(x, y));
+        camera::translate_x(offset.x);
+        camera::translate_y(-offset.y);
     }
 }
 
@@ -332,7 +324,7 @@ void Application::demo_collision() {
     }
 }
 
-void Application::imgui_menubar() {
+void Application::show_menubar() {
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("Menu")) {
             ImGui::MenuItem("Quit", "Q", &m_ctrl.quit);
@@ -342,7 +334,7 @@ void Application::imgui_menubar() {
     }
 }
 
-void Application::imgui_main_overlay(const float avg_fps) {
+void Application::show_main_overlay(const float avg_fps) {
     ImGuiWindowFlags flags(ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
             ImGuiWindowFlags_NoInputs);
@@ -369,36 +361,20 @@ void Application::imgui_main_overlay(const float avg_fps) {
     // Simulation data
     bool p_show(!m_ctrl.editor.active);
     window_pos.y += offset;
-    if (true) {
-        ImGui::SetNextWindowPos(window_pos);
-        ImGui::SetNextWindowBgAlpha(0.5);
-        if (ImGui::Begin("Simu overlay", &p_show, flags)) {
-            if (p_show) {
-                ImGui::SeparatorText("Simulation perf. metrics");
-                ImGui::Text("%s", m_world.dump_metrics().c_str());
-                ImGui::SeparatorText("General infos");
-                ImGui::Text("Bodies : %.1lu", m_world.get_body_count());
-                ImGui::Text("System energy : %.1f J", m_world.total_energy());
-            }
-            ImGui::SeparatorText("Selected body infos");
-            ImGui::Text("%s", m_world.dump_selected_body().c_str());
-            ImGui::End();
+    ImGui::SetNextWindowPos(window_pos);
+    ImGui::SetNextWindowBgAlpha(0.5);
+    if (ImGui::Begin("Simu overlay", &p_show, flags)) {
+        if (p_show) {
+            ImGui::SeparatorText("Simulation perf. metrics");
+            ImGui::Text("%s", m_world.dump_metrics().c_str());
+            ImGui::SeparatorText("General infos");
+            ImGui::Text("Bodies : %.1u", m_world.get_body_count());
+            ImGui::Text("System energy : %.1f J", m_world.total_energy());
         }
+        ImGui::SeparatorText("Selected body infos");
+        ImGui::Text("%s", m_world.dump_selected_body().c_str());
+        ImGui::End();
     }
-    
-    /*
-   if (option_show_time_metrics) {
-       ImGui::Begin("Time performance metrics", &option_show_time_metrics);
-       ImGui::Text("%s", m_world.dump_metrics().c_str());
-       ImGui::End();
-   }
-
-   if (option_show_body_properties) {
-       ImGui::Begin("Body properties", &option_show_body_properties);
-       ImGui::Text("%s", m_world.dump_selected_body().c_str());
-       ImGui::End();
-   }
-   */
 }
 
 void Application::show_property_editor(bool* p_open) {
@@ -423,7 +399,7 @@ void Application::show_property_editor(bool* p_open) {
 }
 
 void Application::show_placeholder_object() {
-    RigidBody* obj(m_world.get_selected_body());
+    RigidBody* obj(m_world.get_focused_body());
     if (!obj) {
         return;
     }
@@ -432,9 +408,10 @@ void Application::show_placeholder_object() {
     ImGui::TableNextRow();
     ImGui::TableSetColumnIndex(0);
     ImGui::AlignTextToFramePadding();
+    ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
     bool node_open(ImGui::TreeNode("Name", "%p", obj));
     ImGui::TableSetColumnIndex(1);
-    ImGui::Text("Ball");
+    ImGui::Text(obj->has_vertices() ?  "Rectangle" : "Ball");
 
     if (node_open) {
         const unsigned n_rows(10);
@@ -447,7 +424,7 @@ void Application::show_placeholder_object() {
             "VelY", 
             "Theta", 
             "Omega", 
-            "Behavior", 
+            "Type", 
             "IsEnabled"
         };
         float values[8] = {
@@ -460,11 +437,9 @@ void Application::show_placeholder_object() {
             (float)obj->get_theta(),
             (float)obj->get_omega()
         };
-        bool prop_static(obj->is_static());
-        bool prop_enabled(obj->is_enabled());
 
         bool property_changed(false);
-        for (int i(0); i < n_rows; ++i) {
+        for (unsigned i(0); i < n_rows; ++i) {
             ImGui::PushID(i);
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0);
@@ -476,17 +451,48 @@ void Application::show_placeholder_object() {
 
             ImGui::TableSetColumnIndex(1);
             ImGui::SetNextItemWidth(-FLT_MIN);
-            if (i < 2) {
-                ImGui::Text("%.3f", values[i]);
-            }else if (i < 8) {
-                if (ImGui::InputFloat(fields[i], &values[i])) {
-                    property_changed = true;
-                }
-            }else if (i == 8) {
-                ImGui::Text(prop_static ? "static" : "dynamic");
-            }else if (i == 9) {
-                ImGui::Text(prop_enabled ? "true" : "false");
+
+            switch (i) {
+                case 0:
+                case 1:
+                    ImGui::Text("%.3f", values[i]);
+                    break;
+                case 2:
+                case 3:
+                case 6:
+                    if (ImGui::InputFloat(fields[i], &values[i])) {
+                        property_changed = true;
+                    }
+                    break;
+                case 4:
+                case 5:
+                case 7:
+                    if (!obj->is_static()) {
+                        if (ImGui::InputFloat(fields[i], &values[i])) {
+                            property_changed = true;
+                        }
+                    }else {
+                        ImGui::Text("%.3f", values[i]);
+                    }
+                    break;
+                case 8:
+                    switch (obj->get_type()) {
+                        case STATIC:
+                            ImGui::Text("static");
+                            break;
+                        case KINEMATIC:
+                            ImGui::Text("kinematic");
+                            break;
+                        case DYNAMIC:
+                            ImGui::Text("dynamic");
+                            break;
+                    }
+                    break;
+                case 9:
+                    ImGui::Text(obj->is_enabled() ? "true" : "false");
+                    break;
             }
+
             ImGui::NextColumn();
             ImGui::PopID();
         }
@@ -502,16 +508,19 @@ void Application::show_placeholder_object() {
     ImGui::PopID();
 }
 
-void Application::imgui_options_panel() {
-    ImGui::Begin("Options");
+void Application::show_options_panel() {
+    ImGui::Begin("Settings");
     ImGui::BeginGroup();
-    ImGui::Checkbox("Track body motion", &option_track_motion);
-    ImGui::Checkbox("Slow motion (x0.1)", &m_ctrl.simulation.slow_motion);
+    ImGui::Checkbox("Slow motion (x0.1)", &m_settings.slow_motion);
+    ImGui::Checkbox("Track body motion", &m_settings.draw_body_trajectory);
+    ImGui::Checkbox("Highlight collisions", &m_settings.highlight_collisions);
+    ImGui::Checkbox("Draw contact points", &m_settings.draw_contact_points);
+    ImGui::Checkbox("Draw collision normal", &m_settings.draw_collision_normal);
     ImGui::EndGroup();
     ImGui::End();
 }
 
-void Application::imgui_help_panel() {
+void Application::show_help_panel() {
     ImGui::Begin("Help");
     ImGui::BeginGroup();
     ImGui::SeparatorText("General");

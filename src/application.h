@@ -6,6 +6,7 @@
 #include "control.h"
 #include "system_state.h"
 #include "editor.h"
+#include "settings.h"
 
 class Application {
 public:
@@ -21,13 +22,13 @@ private:
     TTF_Font* m_font_main;
     int m_exit_status;
 
+    Settings m_settings;
     Control m_ctrl;
     SystemState m_world;
     Editor m_editor;
 
     double delta_time;
 
-    bool option_track_motion;
     bool option_show_time_metrics;
     bool option_show_body_properties;
 
@@ -37,12 +38,12 @@ private:
     void demo_collision();
 
     // GUI
-    void imgui_menubar();
-    void imgui_main_overlay(const float avg_fps);
+    void show_menubar();
+    void show_main_overlay(const float avg_fps);
     void show_placeholder_object();
     void show_property_editor(bool* p_open);
-    void imgui_options_panel();
-    void imgui_help_panel();
+    void show_options_panel();
+    void show_help_panel();
 };  
 
 #endif /* APPLICATION_H */

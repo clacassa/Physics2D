@@ -9,8 +9,8 @@ struct AABB;
 class RigidBody;
 
 constexpr unsigned GJK_max_iterations(1e4);
-constexpr unsigned EPA_max_iterations(1e4);
-constexpr double EPA_epsilon(1e-5);
+constexpr unsigned EPA_max_iterations(1e6);
+constexpr double EPA_epsilon(1e-7);
 
 struct Manifold {
     bool intersecting;
@@ -43,7 +43,9 @@ Vector2 support(RigidBody* body, Vector2 d);
  */
 Vector2 support(RigidBody* body, Vector2 d, Vector2 skip_me);
 
+//-------------------------------
 /////// BROAD PHASE /////////////
+//-------------------------------
 class SweepAndPrune {
 public:
     typedef std::array<RigidBody*, 2> BodyPair;
@@ -64,10 +66,15 @@ private:
 
 bool AABB_overlap(AABB a, AABB b);
 
+
+//-------------------------------
 /////// NARROW PHASE ///////////
-Manifold detect_collision(RigidBody* a, RigidBody* b, double& time_1, double& time_2);
+//-------------------------------
+Manifold detect_collision(RigidBody* a, RigidBody* b, double& gjk_time, double& epa_time);
+
 // GJK coupled with EPA
-void launch_GJK_EPA(RigidBody* a, RigidBody* b, Manifold& rslt,  double& time_1, double& time_2);
+void launch_GJK_EPA(RigidBody* a, RigidBody* b, Manifold& rslt, double& gjk_time, double& epa_time);
+
 // SAT
 bool intersect_circle_circle(RigidBody* a, RigidBody* b, Manifold& result);
 bool intersect_circle_polygon(RigidBody* a, RigidBody* b, Manifold& result);
@@ -100,7 +107,7 @@ struct Edge {
     Vector2 normal;
     unsigned index;
 
-    Edge() : distance(0), normal(0, 0), index(0) {}
+    Edge() : distance(0), index(0) {}
 };
 
 /**
@@ -112,6 +119,7 @@ struct Edge {
  * @param result The resulting information of the collision (normal, depth, contact points)
  */
 void EPA(Simplex s, SourcePoints points, RigidBody* a, RigidBody* b, Manifold& result);
+
 /**
  * @brief Given a simplex, find its closest edge to the origin.
  * @param s Simplex containing the origin

@@ -11,6 +11,7 @@
 #include "rigid_body.h"
 
 // Forward declarations
+struct Settings;
 class RigidBody;
 
 class SystemState {
@@ -21,21 +22,18 @@ public:
     SystemState();
     virtual ~SystemState();
 
-    void process(double dt, int steps, bool perft = false);
-    void apply_forces();
-    void toggle_gravity();
+    void process(double dt, int steps, Settings& settings, bool perft = false);
+    void render(SDL_Renderer* renderer, bool running, Settings& settings);
 
-    void destroy_all();
+    void toggle_gravity();
 
     void add_ball(Vector2 pos, double radius, BodyType type = DYNAMIC, bool enabled = true,
             Vector2 vel = {0, 0});
     void add_rectangle(Vector2 pos, double width, double height, BodyType type = DYNAMIC,
             bool enabled = true, Vector2 vel = {0, 0});
     void add_spring(Vector2 p1, Vector2 p2, Spring::DampingType damping, float stiffness);
-    void move_focused_body(Vector2 delta_p);
-    void rotate_focused_body(double angle);
 
-    void render(SDL_Renderer* renderer, bool running, bool draw_body_motion);
+    void destroy_all();
     
     std::string dump_metrics() const;
     std::string dump_selected_body() const;
@@ -44,26 +42,28 @@ public:
     void focus_next();
     void focus_prev();
     void focus_on_position(Vector2 p);
+    void move_focused_body(Vector2 delta_p);
+    void rotate_focused_body(double angle);
 
-    inline size_t get_body_count() const { return m_bodies.size(); }
-    RigidBody* get_selected_body() const;
+    inline unsigned get_body_count() const { return body_count; }
+    RigidBody* get_focused_body() const;
 
-    // Custom struct to store time metrics variables
-    struct TimePerf {
+private:
+    // Struct to store performance metrics
+    struct PerfMetrics {
         double step_time;
         double ode_time;
         double collisions_time;
         double broad_phase;
         double narrow_phase;
-        double GJK;
-        double EPA;
+        double gjk_time;
+        double epa_time;
         double response_phase;
 
         void reset();
         void average(double steps);
     };
 
-private:
     bool gravity_enabled;
     bool air_friction_enabled;
 
@@ -76,8 +76,10 @@ private:
     std::vector<Spring*> m_springs;
     std::array<Vector2, 3> m_force_fields;
     // std::vector<Constraint*> m_constraints;
-    SweepAndPrune m_SAP;
-    TimePerf m_Time_Perf;
+    SweepAndPrune m_sap;
+    PerfMetrics m_perf_metrics;
+    
+    void apply_forces();
 };
 
 #endif /* SYSTEM_STATE_H */

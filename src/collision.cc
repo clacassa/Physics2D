@@ -92,14 +92,14 @@ void solve_collision(RigidBody* a, RigidBody* b, Manifold collision) {
 
 #ifdef FRICTION
         Vector2 j_f(friction_list[i]);
-        const float attenuation_a(!b->is_static() ? 0.5 : 1);
-        const float attenuation_b(!a->is_static() ? 0.5 : 1);
+        const float attenuation_a(b->is_dynamic() ? 1 : 0.5);
+        const float attenuation_b(a->is_dynamic() ? 1 : 0.5);
 
         a->linear_impulse(-j_f * a->get_inv_m() * 1);
         b->linear_impulse(j_f * b->get_inv_m() * 1);
 
-        a->angular_impulse(-cross2(ra, j_f) * a->get_inv_I() * 1);
-        b->angular_impulse(cross2(rb, j_f) * b->get_inv_I() * 1);
+        a->angular_impulse(-cross2(ra, j_f) * a->get_inv_I() * attenuation_a);
+        b->angular_impulse(cross2(rb, j_f) * b->get_inv_I() * attenuation_b);
 #endif /* FRICTION */
     }
 }
@@ -308,9 +308,9 @@ bool AABB_overlap(AABB a, AABB b) {
 
 
 /////// NARROW PHASE ///////////
-Manifold detect_collision(RigidBody* a, RigidBody* b, double& time_1, double& time_2) {
+Manifold detect_collision(RigidBody* a, RigidBody* b, double& gjk_time, double& epa_time) {
     Manifold result;
-    if (a->is_static() && b->is_static()) {
+    if (!a->is_dynamic() && !b->is_dynamic()) {
         return result;
     }
 #ifdef SAT
@@ -321,23 +321,23 @@ Manifold detect_collision(RigidBody* a, RigidBody* b, double& time_1, double& ti
         if (!b_is_polygon) {
             result.intersecting = intersect_circle_circle(a, b, result);
         }else {
-            //result.intersecting = intersect_circle_polygon(a, b, result);
-            launch_GJK_EPA(a, b, result, time_1, time_2);
+            result.intersecting = intersect_circle_polygon(a, b, result);
+            // launch_GJK_EPA(a, b, result, gjk_time, epa_time);
         }
     }else if (!b_is_polygon) {
-        // result.intersecting = intersect_circle_polygon(b, a, result);
-        //result.normal *= -1;
-        launch_GJK_EPA(a, b, result, time_1, time_2);
+        result.intersecting = intersect_circle_polygon(b, a, result);
+        result.normal *= -1;
+        // launch_GJK_EPA(a, b, result, gjk_time, epa_time);
     }else { 
 # ifdef GJK_EPA
-        launch_GJK_EPA(a, b, result, time_1, time_2);
+        launch_GJK_EPA(a, b, result, gjk_time, epa_time);
 # else
         result.intersecting = intersect_polygon_polygon(a, b, result);
 # endif /* GJK_EPA */
     }
 #else
 # ifdef GJK_EPA
-    launch_GJK_EPA(a, b, result, time_1, time_2);
+    launch_GJK_EPA(a, b, result, gjk_time, epa_time);
 # endif /* GJK_EPA */
 #endif /* SAT */
     return result;
@@ -369,7 +369,7 @@ bool intersect_circle_circle(RigidBody* a, RigidBody* b, Manifold& result) {
 
     if (axis.norm() <= r_a + r_b) {
         result.normal = axis.normalized();
-        result.contact_points[0] = (a->get_p() + b->get_p()) * 0.5;
+        result.contact_points[0] = a->get_p() + result.normal * r_a;
         result.contact_points[1] = result.contact_points[0];
         result.depth = r_a + r_b - axis.norm();
         return true;
@@ -631,8 +631,8 @@ void EPA(Simplex s, SourcePoints points, RigidBody* a, RigidBody* b, Manifold& r
             result.depth = d;
             Vector2 MTV(-e.normal * d);
             result.contact_points[0] = convex_combination(s, points, e.index).closest_a;
-     //       result.contact_points[1] = convex_combination(s, points, e.index).closest_b;
-            result.contact_points[1] = result.contact_points[0];
+            result.contact_points[1] = convex_combination(s, points, e.index).closest_b;
+            // result.contact_points[1] = result.contact_points[0];
             break;
         }else {
             s.insert(s.begin() + e.index, supp);
