@@ -34,19 +34,15 @@ RigidBody::RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, BodyType ty
     id(0),
     static_friction(true)
 {
-    if (is_static()) {
+    if (!is_dynamic()) {
         inv_m = 0;
         inv_I = 0;
+    }
+    if (is_static()) {
         v = Vector2::zero();
     }
-    switch (m_type) {
-        case STATIC:
-            color = {255, 255, 255, 255};
-            break;
-        case DYNAMIC:
-            color = dynamic_body_color;
-            break;
-    }
+    
+    reset_color();
 }
 
 RigidBody::RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, BodyType type_, bool enabled_)
@@ -73,19 +69,15 @@ RigidBody::RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, BodyType ty
     id(0),
     static_friction(true)
 {
-    if (is_static()) {
+    if (!is_dynamic()) {
         inv_m = 0;
         inv_I = 0;
+    }  
+    if (is_static()) {
         v = Vector2::zero();
     }
-    switch (m_type) {
-        case STATIC:
-            color = {255, 255, 255, 255};
-            break;
-        case DYNAMIC:
-            color = dynamic_body_color;
-            break;
-    }
+    
+    reset_color();
 }
 
 RigidBody::~RigidBody() {}
@@ -149,8 +141,8 @@ void RigidBody::move(const Vector2 delta_p, bool update_AABB) {
     }
 }
 
-void RigidBody::rotate(const double angle, bool update_AABB) {
-    theta += angle;
+void RigidBody::rotate(const double d_theta, bool update_AABB) {
+    theta += d_theta;
     if (update_AABB) {
         update_bounding_box();
     }
@@ -178,7 +170,7 @@ double RigidBody::k_energy() const {
 }
 
 double RigidBody::p_energy() const {
-    return !is_static() * m * g * p.y;
+    return is_dynamic() * m * g * p.y;
 }
 
 void RigidBody::draw_forces(SDL_Renderer* renderer) const {
@@ -216,6 +208,9 @@ void RigidBody::reset_color() {
     switch (m_type) {
         case STATIC:
             color = {255, 255, 255, 255};
+            break;
+        case KINEMATIC:
+            color = kinematic_body_color;
             break;
         case DYNAMIC:
             color = dynamic_body_color;

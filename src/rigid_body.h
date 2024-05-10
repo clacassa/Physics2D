@@ -10,7 +10,7 @@
 
 typedef std::vector<Vector2> Vertices;
 
-enum BodyType { STATIC, DYNAMIC };
+enum BodyType { STATIC, KINEMATIC, DYNAMIC };
 
 struct AABB {
     Vector2 min; // Bottom left corner
@@ -32,7 +32,7 @@ public:
     void subject_to_torque(const Vector2 force);
     void reset_forces();
     void move(const Vector2 delta_p, bool update_AABB = true);
-    void rotate(const double angle, bool update_AABB = true);
+    void rotate(const double d_theta, bool update_AABB = true);
     void linear_impulse(const Vector2 impulse);
     void angular_impulse(const double impulse);
     
@@ -52,6 +52,7 @@ public:
     inline Vector2 get_v() const { return v; }
     inline Vector2 get_p() const { return p; }
     inline Vector2 get_f() const { return f; }
+    inline double get_a_theta() const { return a_theta; }
     inline double get_theta() const { return theta; }
     inline double get_omega() const { return omega; }
     inline double get_mass() const { return m; }
@@ -59,7 +60,9 @@ public:
     inline double get_I() const { return I; }
     inline double get_inv_I() const { return inv_I; }
     inline double get_cor() const { return e; }
-    inline bool is_static() const { return (m_type == STATIC); }
+    inline BodyType get_type() const { return m_type; }
+    inline bool is_static() const { return m_type == STATIC; }
+    inline bool is_dynamic() const { return m_type == DYNAMIC; }
     inline bool is_enabled() const { return enabled; }
     inline std::string get_friction() const { return static_friction ? "STATIC" : "DYNAMIC"; }
 
