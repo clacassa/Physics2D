@@ -5,7 +5,7 @@
 
 
 namespace camera {
-    static Vector2 position = {SCENE_WIDTH * 0.5, SCENE_HEIGHT * 0.5};
+    static Vector2 position;
 }
 
 void render_point(SDL_Renderer* renderer, Vector2 p) {
@@ -156,18 +156,10 @@ Vector2 camera::transform_screen_to_world(int px, int py) {
     return world_p;
 }
 
-void camera::translate_left() {
-    camera::position.x -= 50 / RENDER_SCALE;
+void camera::translate_x(int dx) {
+    camera::position.x += dx / RENDER_SCALE;
 }
 
-void camera::translate_down() {
-    camera::position.y -= 50 / RENDER_SCALE;
-}
-
-void camera::translate_right() {
-    camera::position.x += 50 / RENDER_SCALE;
-}
-
-void camera::translate_up() {
-    camera::position.y += 50 / RENDER_SCALE;
+void camera::translate_y(int dy) {
+    camera::position.y += dy / RENDER_SCALE;
 }
