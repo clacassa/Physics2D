@@ -1,30 +1,28 @@
 #include <SDL.h>
 #include <SDL_image.h>
 #include <SDL_ttf.h>
-#include <imgui.h>
-#include <imgui_impl_sdl2.h>
-#include <imgui_impl_sdlrenderer2.h>
 #include <iostream>
 #include <random>
-#include "SDL_video.h"
 #include "application.h"
 #include "render.h"
 #include "config.h"
 
 SDL_DisplayMode get_screen_dimensions();
+void init_window_and_renderer();
 
-#ifndef DEBUG
 const SDL_DisplayMode display_mode = get_screen_dimensions();
+#ifndef DEBUG
 const unsigned SCREEN_WIDTH = display_mode.w;
 const unsigned SCREEN_HEIGHT = display_mode.h;
 #else
 const unsigned SCREEN_WIDTH = 1280;
 const unsigned SCREEN_HEIGHT = 720;
-#endif /* DEBUG */
+#endif
+
+const unsigned SCREEN_FPS = display_mode.refresh_rate;
+
 double RENDER_SCALE = (double)SCREEN_WIDTH / SCENE_WIDTH;
 const double SCENE_HEIGHT = (SCREEN_HEIGHT - STATUSBAR_HEIGHT) / RENDER_SCALE;
-
-void init_window_and_renderer();
 
 SDL_Window* window(nullptr);
 SDL_Renderer* renderer(nullptr);
@@ -39,6 +37,7 @@ int main(int argc, char* argv[]) {
     return app.run();
 }
 
+
 void init_window_and_renderer() {
 #ifdef DEBUG
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -47,7 +46,6 @@ void init_window_and_renderer() {
         exit(1);
     }
 #endif
-
 
     const char* title("MechaPhysics Simulation");
     const int x(SDL_WINDOWPOS_CENTERED);
@@ -99,6 +97,7 @@ SDL_DisplayMode get_screen_dimensions() {
         SDL_Log("SDL_GetDesktopDisplayMode failed: %s", SDL_GetError());
         exit(1);
     }
+
     return dm;
 }
 
