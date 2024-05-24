@@ -248,7 +248,13 @@ double Ball::get_radius() const {
     return r;
 }
 
-void Ball::draw(SDL_Renderer* renderer) const {
+void Ball::draw(SDL_Renderer* renderer) {
+    if (!track.empty()) {
+        if (track.back() != p) {
+            track.clear();
+        }
+    }
+
     if (!is_static() && enabled) {
         SDL_SetRenderDrawColor(renderer, 0.5 * color.r, 0.5 * color.g, 0.5 * color.b, 0.5*color.a);
         render_fill_circle_fast(renderer, p, r);
@@ -332,7 +338,12 @@ Rectangle::Rectangle(Vector2 vel, Vector2 pos, double m, double w_, double h_, V
     // theta = PI / 4.0;
 }
 
-void Rectangle::draw(SDL_Renderer* renderer) const {
+void Rectangle::draw(SDL_Renderer* renderer) {
+    if (!track.empty()) {
+        if (track.back() != p) {
+            track.clear();
+        }
+    }
         // SDL_SetRenderDrawColor(renderer, 239, 169, 54, 255);
     Vector2 A(m_vertices[0]);
     Vector2 B(m_vertices[1]);
@@ -512,19 +523,3 @@ bool Rectangle::contains_point(const Vector2 point) const {
 
 // Triangle::Triangle(Vector2 vel, Vector2 pos, double m, Vertices vertices, bool movable)
 // :   RigidBody(vel, pos, m, )
-
-
-void Frame::draw(SDL_Renderer* renderer) {
-    SDL_SetRenderDrawColor(renderer, 128, 128, 128, 255);
-    SDL_FRect rect({(float)center.x - (float)width / 2, 
-                    (float)SCENE_HEIGHT - (float)center.y - (float)height / 2, 
-                    (float)width, 
-                    (float)height});
-    rect.x *= RENDER_SCALE;
-    rect.y *= RENDER_SCALE;
-    rect.w *= RENDER_SCALE;
-    rect.h *= RENDER_SCALE;
-
-    SDL_RenderDrawRectF(renderer, &rect);
-}
-

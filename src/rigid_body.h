@@ -40,7 +40,7 @@ public:
     double k_energy() const;
     double p_energy() const;
 
-    virtual void draw(SDL_Renderer* renderer) const = 0;
+    virtual void draw(SDL_Renderer* renderer) = 0;
     void draw_forces(SDL_Renderer* renderer) const;
     void draw_trace(SDL_Renderer* renderer, bool update_trace);
     void colorize(const SDL_Color color);
@@ -127,7 +127,7 @@ public:
     // A ball doesn't have any verticies
     Vertices get_vertices() const override;
     double get_radius() const override;
-    void draw(SDL_Renderer* renderer) const override;
+    void draw(SDL_Renderer* renderer) override;
     void handle_wall_collisions() override;
     void update_bounding_box() override;
     bool contains_point(const Vector2 point) const override;
@@ -142,7 +142,7 @@ public:
             BodyType type = DYNAMIC, bool enabled = true);
     virtual ~Rectangle() {}
 
-    void draw(SDL_Renderer* renderer) const override;
+    void draw(SDL_Renderer* renderer) override;
     void handle_wall_collisions() override;
     void update_bounding_box() override;
     bool contains_point(const Vector2 point) const override;
@@ -161,16 +161,6 @@ class Triangle : public RigidBody {
 //     void handle_wall_collisions() override;
 //     void update_bounding_box() override;
 //     bool contains_point(const Vector2 point) const override;
-};
-
-struct Frame {
-    Frame(Vector2 center_, double w, double h) : center(center_), width(w), height(h) {}
-
-    void draw(SDL_Renderer* renderer);
-
-    Vector2 center;
-    double width;
-    double height;
 };
 
 #endif /* RIGID_BODY_H */
