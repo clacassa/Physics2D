@@ -9,19 +9,19 @@ namespace camera {
 }
 
 void render_point(SDL_Renderer* renderer, Vector2 p) {
-    Vector2 px(camera::transform_world_to_screen(p));
+    Vector2 px(camera::world_to_screen(p));
     SDL_RenderDrawPointF(renderer, px.x, px.y);
 }
 
 void render_line(SDL_Renderer* renderer, Vector2 p1, Vector2 p2) {
-    Vector2 px1(camera::transform_world_to_screen(p1));
-    Vector2 px2(camera::transform_world_to_screen(p2));
+    Vector2 px1(camera::world_to_screen(p1));
+    Vector2 px2(camera::world_to_screen(p2));
     SDL_RenderDrawLineF(renderer, px1.x, px1.y, px2.x, px2.y);
 }
 
 void render_filled_circle(SDL_Renderer *renderer, Vector2 center, double radius) {
     radius *= RENDER_SCALE;
-    Vector2 center_px(camera::transform_world_to_screen(center));
+    Vector2 center_px(camera::world_to_screen(center));
     radius = (int)radius;
 
     for (int w(0); w < radius * 2; ++w) {
@@ -36,7 +36,7 @@ void render_filled_circle(SDL_Renderer *renderer, Vector2 center, double radius)
 
 
 void render_fill_circle_fast(SDL_Renderer * renderer, Vector2 center, double radius_) {
-    Vector2 center_px(camera::transform_world_to_screen(center));
+    Vector2 center_px(camera::world_to_screen(center));
     radius_ *= RENDER_SCALE;
     int x(center_px.x);
     int y(center_px.y);
@@ -92,7 +92,7 @@ void render_fill_circle_fast(SDL_Renderer * renderer, Vector2 center, double rad
 }
 
 void render_circle(SDL_Renderer* renderer, Vector2 center, double radius) {
-    Vector2 center_px(camera::transform_world_to_screen(center));
+    Vector2 center_px(camera::world_to_screen(center));
     radius *= RENDER_SCALE;
 
     double error(-radius);
@@ -130,7 +130,7 @@ void render_circle(SDL_Renderer* renderer, Vector2 center, double radius) {
 }
 
 void render_rectangle(SDL_Renderer* renderer, Vector2 center, double w, double h) {
-    Vector2 px(camera::transform_world_to_screen(center));
+    Vector2 px(camera::world_to_screen(center));
     w *= RENDER_SCALE;
     h *= RENDER_SCALE;
 
@@ -138,7 +138,7 @@ void render_rectangle(SDL_Renderer* renderer, Vector2 center, double w, double h
     SDL_RenderDrawRectF(renderer, &rect);
 }
 
-Vector2 camera::transform_world_to_screen(Vector2 world_p) {
+Vector2 camera::world_to_screen(Vector2 world_p) {
     Vector2 screen_p;
     world_p -= camera::position;
     screen_p.x = world_p.x * RENDER_SCALE + SCREEN_WIDTH / 2.0;
@@ -147,7 +147,7 @@ Vector2 camera::transform_world_to_screen(Vector2 world_p) {
     return screen_p;
 }
 
-Vector2 camera::transform_screen_to_world(int px, int py) {
+Vector2 camera::screen_to_world(int px, int py) {
     Vector2 world_p;
     world_p.x = ((double)px - SCREEN_WIDTH / 2.0) / RENDER_SCALE;
     world_p.y = (SCREEN_HEIGHT / 2.0 - py) / RENDER_SCALE;
@@ -156,10 +156,22 @@ Vector2 camera::transform_screen_to_world(int px, int py) {
     return world_p;
 }
 
-void camera::translate_x(int dx) {
+void camera::translate_screen_x(int dx) {
     camera::position.x += dx / RENDER_SCALE;
 }
 
-void camera::translate_y(int dy) {
+void camera::translate_screen_y(int dy) {
     camera::position.y += dy / RENDER_SCALE;
+}
+
+void camera::translate_world(Vector2 delta) {
+    camera::position += delta;
+}
+
+void camera::zoom_in() {
+    RENDER_SCALE *= 1.1;
+}
+
+void camera::zoom_out() {
+    RENDER_SCALE /= 1.1;
 }

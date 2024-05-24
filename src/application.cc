@@ -60,8 +60,8 @@ int Application::run() {
         return m_exit_status;
     }
 
-    camera::translate_x(SCREEN_WIDTH * 0.5);
-    camera::translate_y(SCREEN_HEIGHT * 0.5);
+    camera::translate_screen_x(SCREEN_WIDTH * 0.5);
+    camera::translate_screen_y(SCREEN_HEIGHT * 0.5);
     VTextLayout left_panel(m_renderer, 10, 10);
     left_panel.add_texture(text_color, m_font_main);
     left_panel.add_texture(text_color, m_font_main);
@@ -74,7 +74,7 @@ int Application::run() {
     int frames_count(0);
     fps_timer.start();
 
-    demo_collision();
+    // demo_collision();
 
     SDL_Event e;
     while (!m_ctrl.quit) {
@@ -109,7 +109,7 @@ int Application::run() {
             if (m_settings.slow_motion) {
                 dt /= 10.0;
             }
-            m_world.process(dt, STEPS_PER_FRAME, m_settings, true);
+            m_world.process(dt, STEPS_PER_FRAME, m_settings, false);
         }
 
         // Rendering
@@ -149,7 +149,7 @@ int Application::run() {
         SDL_RenderPresent(m_renderer);
 
         ++frames_count;
-        // If frame finished earlu
+        // If frame finished early
         unsigned frame_ticks(cap_timer.get_ticks());
         if (frame_ticks < SCREEN_TICKS_PER_FRAME) {
             SDL_Delay(SCREEN_TICKS_PER_FRAME - frame_ticks);
@@ -190,6 +190,7 @@ void Application::handle_event(SDL_Event& e, const double dt) {
             case SDLK_2:
                 m_ctrl.editor.active = true;
                 m_ctrl.simulation.running = false;
+                m_editor.update_grid();
                 break;
             case SDLK_EQUALS:
                 m_settings.slow_motion = !m_settings.slow_motion;
@@ -223,16 +224,16 @@ void Application::handle_event(SDL_Event& e, const double dt) {
             case SDLK_z:
                 m_world.rotate_focused_body(PI / 50); break;
             case SDLK_h:
-                camera::translate_x(-50);
+                camera::translate_screen_x(-50);
                 break;
             case SDLK_j:
-                camera::translate_y(-50);
+                camera::translate_screen_y(-50);
                 break;
             case SDLK_k:
-                camera::translate_y(50);
+                camera::translate_screen_y(50);
                 break;
             case SDLK_l:
-                camera::translate_x(50);
+                camera::translate_screen_x(50);
                 break;
             case SDLK_LESS:
                 if (m_ctrl.editor.active) {
@@ -264,9 +265,9 @@ void Application::handle_event(SDL_Event& e, const double dt) {
             switch (m_editor.get_body_shape()) {
                 case Editor::BALL:
                     if (!m_ctrl.editor.active) {
-                        m_world.add_ball(mouse, 0.1);
+                        m_world.add_ball(mouse, SCENE_WIDTH * 0.01);
                     }else {
-                        m_world.add_ball(mouse, 0.1, m_editor.get_body_type(),
+                        m_world.add_ball(mouse, DIV * 0.5, m_editor.get_body_type(),
                                 m_editor.get_enabled());
                     }
                     break;
@@ -280,39 +281,48 @@ void Application::handle_event(SDL_Event& e, const double dt) {
                     }
                     break;
             }
+            m_ctrl.input.prev_click = mouse;
         }else if (e.button.button == SDL_BUTTON_RIGHT) {
             if (!m_ctrl.editor.adding_spring) {
-                m_ctrl.input.prev_click = mouse;
                 m_ctrl.editor.adding_spring = true;
             }else {
                 m_world.add_spring(m_ctrl.input.prev_click, mouse, m_editor.get_damping(),
                         m_editor.get_stiffness());
                 m_ctrl.editor.adding_spring = false;
             }
+            m_ctrl.input.prev_click = mouse;
         }else if (e.button.button == SDL_BUTTON_MIDDLE) {
             m_world.focus_on_position(mouse);
         }
     }else if (e.type == SDL_MOUSEMOTION) {
         int x, y;
-        SDL_GetMouseState(&x, &y);
-        Vector2 world_p(camera::transform_screen_to_world(x, y));
+        const Uint32 mouse_state(SDL_GetMouseState(&x, &y));
+        Vector2 world_p(camera::screen_to_world(x, y));
         if (m_ctrl.input.pointer != world_p) {
             m_ctrl.input.pointer = world_p;
             m_ctrl.editor.cross_pointer = m_editor.track_point(m_ctrl.input.pointer);
         }
-    }else if (e.type == SDL_MOUSEWHEEL) {
-        if (e.wheel.y > 0) {
-            RENDER_SCALE *= 1.1;
-        }else {
-            if (RENDER_SCALE > 0.1) {
-                RENDER_SCALE /= 1.1;
+        if (mouse_state & SDL_BUTTON_RMASK) {
+            m_ctrl.editor.adding_spring = false;
+            camera::translate_world(m_ctrl.input.prev_click - m_ctrl.input.pointer);
+            if (m_ctrl.editor.active) {
+                m_editor.update_grid();
             }
         }
+    }else if (e.type == SDL_MOUSEWHEEL) {
+        if (e.wheel.y > 0) {
+            camera::zoom_in();
+        }else {
+            if (RENDER_SCALE > 0.1) {
+                camera::zoom_out();
+            }
+        }
+        m_editor.update_grid();
         int x, y;
         SDL_GetMouseState(&x, &y);
-        Vector2 offset(camera::transform_world_to_screen(m_ctrl.input.pointer) - Vector2(x, y));
-        camera::translate_x(offset.x);
-        camera::translate_y(-offset.y);
+        Vector2 offset(camera::world_to_screen(m_ctrl.input.pointer) - Vector2(x, y));
+        camera::translate_screen_x(offset.x);
+        camera::translate_screen_y(-offset.y);
     }
 }
 
@@ -371,8 +381,6 @@ void Application::show_main_overlay(const float avg_fps) {
             ImGui::Text("Bodies : %.1u", m_world.get_body_count());
             ImGui::Text("System energy : %.1f J", m_world.total_energy());
         }
-        ImGui::SeparatorText("Selected body infos");
-        ImGui::Text("%s", m_world.dump_selected_body().c_str());
         ImGui::End();
     }
 }

@@ -10,10 +10,11 @@ const SDL_Color text_color({255, 255, 255, 255});
 const SDL_Color kinematic_body_color({189, 183, 107, 255});
 const SDL_Color dynamic_body_color({255, 180, 180, 255});
 
-constexpr double SCENE_WIDTH(25);          // Scene width in meters
-
 extern const unsigned SCREEN_WIDTH;
 extern const unsigned SCREEN_HEIGHT;
+extern const double ASPECT_RATIO;
+
+extern const double SCENE_WIDTH;          // Scene width in meters
 extern double RENDER_SCALE;                 // Pixel to meter ratio (#of px for 1m)
 extern const double SCENE_HEIGHT;
 
@@ -33,10 +34,13 @@ void render_rectangle(SDL_Renderer* renderer, Vector2 center, double w, double h
  *  RENDER_SCALE = camera_width
  */ 
 namespace camera {
-    Vector2 transform_world_to_screen(Vector2 world_p);
-    Vector2 transform_screen_to_world(int px, int py);
-    void translate_x(int dx);
-    void translate_y(int dy);
+    Vector2 world_to_screen(Vector2 world_p);
+    Vector2 screen_to_world(int px, int py);
+    void translate_screen_x(int dx);
+    void translate_screen_y(int dy);
+    void translate_world(Vector2 delta);
+    void zoom_in();
+    void zoom_out();
 }
 
 #endif /* RENDER_H */
