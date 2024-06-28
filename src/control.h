@@ -13,7 +13,6 @@ struct Control {
     struct Editor {
         bool active;
         bool adding_spring;
-        Vector2 cross_pointer;
 
         Editor();
     };
