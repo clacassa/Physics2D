@@ -12,7 +12,6 @@ const SDL_Color dynamic_body_color({255, 180, 180, 255});
 
 extern const unsigned SCREEN_WIDTH;
 extern const unsigned SCREEN_HEIGHT;
-extern const double ASPECT_RATIO;
 
 extern const double SCENE_WIDTH;          // Scene width in meters
 extern double RENDER_SCALE;                 // Pixel to meter ratio (#of px for 1m)
