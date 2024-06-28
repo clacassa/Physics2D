@@ -23,8 +23,10 @@ Application::Application(SDL_Window* window, SDL_Renderer* renderer, double w, d
     m_width(w),
     m_height(h),
     m_font_main(font),
+    m_arrow_cursor(SDL_CreateSystemCursor(SDL_SystemCursor::SDL_SYSTEM_CURSOR_ARROW)),
+    m_crosshair_cursor(SDL_CreateSystemCursor(SDL_SystemCursor::SDL_SYSTEM_CURSOR_CROSSHAIR)),
     m_exit_status(0),
-    m_editor(m_renderer, m_font_main, SCENE_WIDTH / 50),
+    m_editor(m_renderer, m_font_main, SCENE_WIDTH / 100),
     delta_time(0)
 {
     // ImGui initialisation
@@ -36,11 +38,18 @@ Application::Application(SDL_Window* window, SDL_Renderer* renderer, double w, d
     ImGuiIO& io(ImGui::GetIO());
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+
+    SDL_SetCursor(m_crosshair_cursor);
 }
 
 Application::~Application() {
     TTF_CloseFont(m_font_main);
     m_font_main = nullptr;
+
+    SDL_FreeCursor(m_arrow_cursor);
+    m_arrow_cursor = nullptr;
+    SDL_FreeCursor(m_crosshair_cursor);
+    m_crosshair_cursor = nullptr;
 
     SDL_DestroyRenderer(m_renderer);
     SDL_DestroyWindow(m_window);
@@ -126,7 +135,7 @@ int Application::run() {
 
         if (m_ctrl.editor.adding_spring) {
             SDL_SetRenderDrawColor(m_renderer, 0, 128, 255, 255);
-            render_line(m_renderer, m_ctrl.input.prev_click, m_ctrl.input.pointer);
+            render_line(m_renderer, m_ctrl.input.prev_click, m_editor.get_active_node());
         }
 
         // ImGui::ShowDemoWindow();
@@ -191,6 +200,7 @@ void Application::handle_event(SDL_Event& e, const double dt) {
                 m_ctrl.editor.active = true;
                 m_ctrl.simulation.running = false;
                 m_editor.update_grid();
+                SDL_SetCursor(m_crosshair_cursor);
                 break;
             case SDLK_EQUALS:
                 m_settings.slow_motion = !m_settings.slow_motion;
@@ -238,9 +248,9 @@ void Application::handle_event(SDL_Event& e, const double dt) {
             case SDLK_LESS:
                 if (m_ctrl.editor.active) {
                     if(e.key.keysym.mod == KMOD_LSHIFT) {
-                        m_editor.increase_div(); 
+
                     }else {
-                        m_editor.decrease_div();
+
                     }
                 }
                 break;
@@ -253,13 +263,20 @@ void Application::handle_event(SDL_Event& e, const double dt) {
     }
 
     if (io.WantCaptureMouse) {
+        if (SDL_GetCursor() == m_crosshair_cursor) {
+            SDL_SetCursor(m_arrow_cursor);
+        }
         return;
+    }
+
+    if (SDL_GetCursor() != m_crosshair_cursor) {
+        SDL_SetCursor(m_crosshair_cursor);
     }
 
     if (e.type == SDL_MOUSEBUTTONDOWN) {
         Vector2 mouse(m_ctrl.input.pointer);
         if (m_ctrl.editor.active) {
-            mouse = m_ctrl.editor.cross_pointer;
+            mouse = m_editor.get_active_node();
         }
         if (e.button.button == SDL_BUTTON_LEFT) {
             switch (m_editor.get_body_shape()) {
@@ -267,7 +284,7 @@ void Application::handle_event(SDL_Event& e, const double dt) {
                     if (!m_ctrl.editor.active) {
                         m_world.add_ball(mouse, SCENE_WIDTH * 0.01);
                     }else {
-                        m_world.add_ball(mouse, DIV * 0.5, m_editor.get_body_type(),
+                        m_world.add_ball(mouse, DIV, m_editor.get_body_type(),
                                 m_editor.get_enabled());
                     }
                     break;
@@ -276,7 +293,7 @@ void Application::handle_event(SDL_Event& e, const double dt) {
                         m_world.add_rectangle(mouse, SCENE_WIDTH * (0.025 + 0.001 * (rand() % 10)), 
                                 SCENE_WIDTH * (0.025 + 0.001 * (rand() % 10)));
                     }else {
-                        m_world.add_rectangle(mouse, DIV * 2, DIV, m_editor.get_body_type(),
+                        m_world.add_rectangle(mouse, DIV * 4, DIV * 2, m_editor.get_body_type(),
                                 m_editor.get_enabled());
                     }
                     break;
@@ -300,7 +317,7 @@ void Application::handle_event(SDL_Event& e, const double dt) {
         Vector2 world_p(camera::screen_to_world(x, y));
         if (m_ctrl.input.pointer != world_p) {
             m_ctrl.input.pointer = world_p;
-            m_ctrl.editor.cross_pointer = m_editor.track_point(m_ctrl.input.pointer);
+            m_editor.track_point(m_ctrl.input.pointer);
         }
         if (mouse_state & SDL_BUTTON_RMASK) {
             m_ctrl.editor.adding_spring = false;
@@ -371,17 +388,17 @@ void Application::show_main_overlay(const float avg_fps) {
     // Simulation data
     bool p_show(!m_ctrl.editor.active);
     window_pos.y += offset;
-    ImGui::SetNextWindowPos(window_pos);
-    ImGui::SetNextWindowBgAlpha(0.5);
-    if (ImGui::Begin("Simu overlay", &p_show, flags)) {
-        if (p_show) {
+    if (p_show) {
+        ImGui::SetNextWindowPos(window_pos);
+        ImGui::SetNextWindowBgAlpha(0.5);
+        if (ImGui::Begin("Simu overlay", &p_show, flags)) {
             ImGui::SeparatorText("Simulation perf. metrics");
             ImGui::Text("%s", m_world.dump_metrics().c_str());
             ImGui::SeparatorText("General infos");
             ImGui::Text("Bodies : %.1u", m_world.get_body_count());
             ImGui::Text("System energy : %.1f J", m_world.total_energy());
+            ImGui::End();
         }
-        ImGui::End();
     }
 }
 

@@ -20,6 +20,9 @@ private:
     unsigned m_width;
     unsigned m_height;
     TTF_Font* m_font_main;
+    SDL_Cursor* m_arrow_cursor;
+    SDL_Cursor* m_crosshair_cursor;
+    
     int m_exit_status;
 
     Settings m_settings;
@@ -28,9 +31,6 @@ private:
     Editor m_editor;
 
     double delta_time;
-
-    bool option_show_time_metrics;
-    bool option_show_body_properties;
 
     void handle_event(SDL_Event& e, const double dt);
 

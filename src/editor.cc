@@ -7,7 +7,6 @@
 
 Editor::Editor(SDL_Renderer* renderer, TTF_Font* font, double division)
 :   div(division),
-    n(SCENE_HEIGHT / div + 1),
     active_node(0, 0),
     m_renderer(renderer),
     m_font(font),
@@ -21,12 +20,7 @@ Editor::Editor(SDL_Renderer* renderer, TTF_Font* font, double division)
     current_stiffness(spring_default_stiffness),
     damping(Spring::UNDERDAMPED)
 {
-    m_grid.resize(n, std::vector<Vector2>(n * 2));
-    for (size_t i(0); i < n; ++i) {
-        for (size_t j(0); j < n * SCENE_WIDTH / SCENE_HEIGHT; ++j) {
-            m_grid[i][j] = Vector2(j * div, i * div);
-        }
-    }
+    update_grid();
 
     m_banner.add_texture(text_color, m_font);
     m_banner.add_texture(text_color, m_font);
@@ -45,94 +39,200 @@ void Editor::render() {
 Vector2 Editor::track_point(Vector2 p) {
     Vector2 tracked_point;
     double dist(INT_MAX);
-    for (size_t i(0); i < n; ++i) {
-        for (size_t j(0); j < n * 2; ++j) {
-            const Vector2 node(m_grid[i][j]);
-            const Vector2 v(node - p);
-            double d(v.x * v.x + v.y * v.y);
-            if (d < dist) {
-                tracked_point = node;
-                dist = d;
+
+    if (p.x >= 0 && p.y >= 0) {
+        for (size_t i(0); i < m_first_quad.size(); ++i) {
+            for (size_t j(0); j < m_first_quad[0].size(); ++j) {
+                const Vector2 node(m_first_quad[i][j]);
+                const Vector2 v(node - p);
+                double d(v.x * v.x + v.y * v.y);
+                if (d < dist) {
+                    tracked_point = node;
+                    dist = d;
+                }
+            }
+        }
+    }else if (p.x < 0 && p.y >= 0) {
+        for (size_t i(0); i < m_second_quad.size(); ++i) {
+            for (size_t j(0); j < m_second_quad[0].size(); ++j) {
+                const Vector2 node(m_second_quad[i][j]);
+                const Vector2 v(node - p);
+                double d(v.x * v.x + v.y * v.y);
+                if (d < dist) {
+                    tracked_point = node;
+                    dist = d;
+                }
+            }
+        }
+    }else if (p.x < 0 && p.y < 0) {
+        for (size_t i(0); i < m_third_quad.size(); ++i) {
+            for (size_t j(0); j < m_third_quad[0].size(); ++j) {
+                const Vector2 node(m_third_quad[i][j]);
+                const Vector2 v(node - p);
+                double d(v.x * v.x + v.y * v.y);
+                if (d < dist) {
+                    tracked_point = node;
+                    dist = d;
+                }
+            }
+        }
+    }else {
+        for (size_t i(0); i < m_fourth_quad.size(); ++i) {
+            for (size_t j(0); j < m_fourth_quad[0].size(); ++j) {
+                const Vector2 node(m_fourth_quad[i][j]);
+                const Vector2 v(node - p);
+                double d(v.x * v.x + v.y * v.y);
+                if (d < dist) {
+                    tracked_point = node;
+                    dist = d;
+                }
             }
         }
     }
+
     active_node = tracked_point;
     return tracked_point;
 }
 
-void Editor::increase_div() {
-    if (2 * div <= DIV_MAX) {
-        div *= 2;
-        update_grid();
-    }
-}
-
-void Editor::decrease_div() {
-    if (0.5 * div >= DIV_MIN) {
-        div *= 0.5;
-        update_grid();
-    }
-}
-
 void Editor::update_grid() {
-    n = SCENE_HEIGHT / div + 1;
-    m_grid.clear();
-    m_grid.resize(n, std::vector<Vector2>(n * 2));
-    for (size_t i(0); i < n; ++i) {
-        for (size_t j(0); j < n * 2; ++j) {
-            m_grid[i][j] = Vector2(j * div, i * div);
+    // First quadrant
+    const Vector2 tr(camera::screen_to_world(SCREEN_WIDTH, 0));
+    m_first_quad.clear();
+    if (tr.x >= 0 && tr.y >= 0) {
+        m_first_quad.resize(abs(tr.y) / div + 1, std::vector<Vector2>(abs(tr.x) / div + 1));
+        for (size_t i(0); i < m_first_quad.size(); ++i) {
+            for (size_t j(0); j < m_first_quad[0].size(); ++j) {
+                m_first_quad[i][j] = Vector2(j * div, i * div);
+            }
+        }
+    }
+    // Second quadrant
+    const Vector2 tl(camera::screen_to_world(0, 0));
+    m_second_quad.clear();
+    if (tl.x < 0 && tl.y >= 0) {
+        m_second_quad.resize(abs(tl.y) / div + 1, std::vector<Vector2>(abs(tl.x) / div + 1));
+        for (size_t i(0); i < m_second_quad.size(); ++i) {
+            for (size_t j(0); j < m_second_quad[0].size(); ++j) {
+                m_second_quad[i][j] = Vector2(j * -div, i * div);
+            }
+        }
+    }
+    // Third quadrant
+    const Vector2 bl(camera::screen_to_world(0, SCREEN_HEIGHT));
+    m_third_quad.clear();
+    if (bl.x < 0 && bl.y < 0) {
+        m_third_quad.resize(abs(bl.y) / div + 1, std::vector<Vector2>(abs(bl.x) / div + 1));
+        for (size_t i(0); i < m_third_quad.size(); ++i) {
+            for (size_t j(0); j < m_third_quad[0].size(); ++j) {
+                m_third_quad[i][j] = Vector2(j * -div, i * -div);
+            }
+        }
+    }
+    // Fourth quadrant
+    const Vector2 br(camera::screen_to_world(SCREEN_WIDTH, SCREEN_HEIGHT));
+    m_fourth_quad.clear();
+    if (br.x >= 0 && br.y < 0) {
+        m_fourth_quad.resize(abs(br.y) / div + 1, std::vector<Vector2>(abs(br.x) / div + 1));
+        for (size_t i(0); i < m_fourth_quad.size(); ++i) {
+            for (size_t j(0); j < m_fourth_quad[0].size(); ++j) {
+                m_fourth_quad[i][j] = Vector2(j * div, i * -div);
+            }
         }
     }
 }
 
 void Editor::render_grid() {
-    SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 255);
-    for (auto row : m_grid) {
+    // Render the nodes
+    SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 127);
+    for (auto row : m_first_quad) {
         for (auto node : row) {
             render_point(m_renderer, node);
         }
     }
-    // Render the cross pointer
-    SDL_SetRenderDrawColor(m_renderer, 255, 0, 255, 127);
-    double x(active_node.x);
-    double y(active_node.y);
-    render_line(m_renderer, {x - 10 / RENDER_SCALE, y}, {x + 10 / RENDER_SCALE, y});
-    render_line(m_renderer, {x, y - 10 / RENDER_SCALE}, {x, y + 10 / RENDER_SCALE});
+    for (auto row : m_second_quad) {
+        for (auto node : row) {
+            render_point(m_renderer, node);
+        }
+    }
+    for (auto row : m_third_quad) {
+        for (auto node : row) {
+            render_point(m_renderer, node);
+        }
+    }
+    for (auto row : m_fourth_quad) {
+        for (auto node : row) {
+            render_point(m_renderer, node);
+        }
+    }
+    // Highlight the active node
+    SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 127);
+    render_filled_circle(m_renderer, active_node, 3 / RENDER_SCALE);
     // Render the median axis with graduations
     SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 127);
-    const double x_axis_height(SCREEN_HEIGHT * 0.5);
-    SDL_RenderDrawLineF(m_renderer, 0, SCREEN_HEIGHT * 0.5, SCREEN_WIDTH, SCREEN_HEIGHT * 0.5);
-    SDL_RenderDrawLineF(m_renderer, SCREEN_WIDTH * 0.5, 0, SCREEN_WIDTH * 0.5, SCREEN_HEIGHT);
+    const double x_axis_pos(0);
+    const double x_axis_screen_pos(camera::world_to_screen({0, x_axis_pos}).y);
+    const double y_axis_pos(0);
+    const double y_axis_screen_pos(camera::world_to_screen({y_axis_pos, 0}).x);
+    SDL_RenderDrawLineF(m_renderer, 0, x_axis_screen_pos, SCREEN_WIDTH, x_axis_screen_pos);
+    SDL_RenderDrawLineF(m_renderer, y_axis_screen_pos, 0, y_axis_screen_pos, SCREEN_HEIGHT);
     double p1, p2;
-    for (auto row : m_grid) {
+    for (auto row : m_first_quad) {
+        if (row.empty()) {
+            continue;
+        }
         if (row[0].y - floor(row[0].y) == 0) {
-            p1 = SCENE_WIDTH * 0.5 - 7.5 / RENDER_SCALE;
-            p2 = SCENE_WIDTH * 0.5 + 7.5 / RENDER_SCALE;
+            p1 = y_axis_pos - 7.5 / RENDER_SCALE;
+            p2 = y_axis_pos + 7.5 / RENDER_SCALE;
         }else {
-            p1 = SCENE_WIDTH * 0.5 - 2.5 / RENDER_SCALE;
-            p2 = SCENE_WIDTH * 0.5 + 2.5 / RENDER_SCALE;
+            p1 = y_axis_pos - 2.5 / RENDER_SCALE;
+            p2 = y_axis_pos + 2.5 / RENDER_SCALE;
         }
         SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 127);
         render_line(m_renderer, {p1, row[0].y}, {p2, row[0].y});
         SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 63);
-        //render_line(m_renderer, 0, row[0].y, SCENE_WIDTH, row[0].y);
     }
-    for (auto node : m_grid[0]) {
+    for (auto node : m_first_quad[0]) {
         if (node.x - floor(node.x) == 0) {
-            p1 = x_axis_height - 7.5 / RENDER_SCALE;
-            p2 = x_axis_height + 7.5 / RENDER_SCALE;
+            p1 = x_axis_pos - 7.5 / RENDER_SCALE;
+            p2 = x_axis_pos + 7.5 / RENDER_SCALE;
         }else {
-            p1 = x_axis_height - 2.5 / RENDER_SCALE;
-            p2 = x_axis_height + 2.5 / RENDER_SCALE;
+            p1 = x_axis_pos - 2.5 / RENDER_SCALE;
+            p2 = x_axis_pos + 2.5 / RENDER_SCALE;
         }
         SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 127);
         render_line(m_renderer, {node.x, p1}, {node.x, p2});
         SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 63);
-        //render_line(m_renderer, node.x, 0, node.x, SCENE_HEIGHT);
+    }
+    for (auto node : m_second_quad[0]) {
+        if (node.x - floor(node.x) == 0) {
+            p1 = x_axis_pos - 7.5 / RENDER_SCALE;
+            p2 = x_axis_pos + 7.5 / RENDER_SCALE;
+        }else {
+            p1 = x_axis_pos - 2.5 / RENDER_SCALE;
+            p2 = x_axis_pos + 2.5 / RENDER_SCALE;
+        }
+        SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 127);
+        render_line(m_renderer, {node.x, p1}, {node.x, p2});
+        SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 63);
+    }
+    for (auto row : m_third_quad) {
+        if (row.empty()) {
+            continue;
+        }
+        if (row[0].y - floor(row[0].y) == 0) {
+            p1 = y_axis_pos - 7.5 / RENDER_SCALE;
+            p2 = y_axis_pos + 7.5 / RENDER_SCALE;
+        }else {
+            p1 = y_axis_pos - 2.5 / RENDER_SCALE;
+            p2 = y_axis_pos + 2.5 / RENDER_SCALE;
+        }
+        SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 127);
+        render_line(m_renderer, {p1, row[0].y}, {p2, row[0].y});
+        SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 63);
     }
 }
 
-void Editor::imgui_controls(bool* editor_active) {
+void Editor::show_controls(bool* editor_active) {
     const float pad(10.0);
     const ImGuiViewport* viewport(ImGui::GetMainViewport());
     ImVec2 work_pos(viewport->WorkPos);
@@ -147,14 +247,16 @@ void Editor::imgui_controls(bool* editor_active) {
     }
     if (ImGui::Begin("Editor controls", &show_help_banner, window_flags)) {
         int new_body_shape(body_shape);
-        ImGui::SeparatorText("Body type");
+        ImGui::SeparatorText("Rigid body");
         ImGui::RadioButton("Ball (B)", &new_body_shape, 0);
         ImGui::SameLine();
         ImGui::RadioButton("Rectangle (R)", &new_body_shape, 1);
+        ImGui::SameLine();
+        ImGui::Text("Shape");
         body_shape = static_cast<BodyShape>(new_body_shape);
 
-        static int new_body_type(1);
-        const char* items_type("Static\0Dynamic\0");
+        static int new_body_type(DYNAMIC);
+        const char* items_type("Static\0Kinematic\0Dynamic\0");
         ImGui::Combo("Type", &new_body_type, items_type);
         body_type = static_cast<BodyType>(new_body_type);
 
@@ -162,45 +264,19 @@ void Editor::imgui_controls(bool* editor_active) {
 
         ImGui::SeparatorText("Spring type");
         ImGui::Checkbox("Infinitely stiff", &spring_very_stiff);
-        static float k(spring_very_stiff ? spring_infnite_stiffness : spring_default_stiffness);
+        static float k(spring_very_stiff ? spring_infinite_stiffness : spring_default_stiffness);
         ImGui::BeginDisabled(spring_very_stiff);
         if (spring_very_stiff) {
-            k = spring_infnite_stiffness;
+            k = spring_infinite_stiffness;
         }
         ImGui::InputFloat("Stiffness", &k);
         ImGui::EndDisabled();
         current_stiffness = k;
 
         static int new_damping_type(0);
-        // const char* items[] = {"Undamped", "Underdamped", "Critically damped", "Overdamped"};
-        // const char* combo_label(items[new_damping_type]);
-        // if (ImGui::BeginCombo("Damping", combo_label)) {
-        //     for (int n(0); n < IM_ARRAYSIZE(items); ++n) {
-        //         const bool is_selected(new_damping_type == n);
-        //         if (ImGui::Selectable(items[n], is_selected))
-        //             new_damping_type = n;
-
-        //         if (is_selected)
-        //             ImGui::SetItemDefaultFocus();
-        //     }
-        //     ImGui::EndCombo();
-        // }
         const char* items_damping("Undamped\0Underdamped\0Critically damped\0Overdamped\0");
         ImGui::Combo("Damping", &new_damping_type, items_damping);
         damping = static_cast<Spring::DampingType>(new_damping_type);
-
-        ImGui::SeparatorText("Layout");
-        ImGui::AlignTextToFramePadding();
-        ImGui::Text("Larger grid ");
-        ImGui::SameLine();
-        if (ImGui::ArrowButton("> grid", ImGuiDir_Up)) {
-            decrease_div();    
-        }
-        ImGui::Text("Smaller grid");
-        ImGui::SameLine();
-        if (ImGui::ArrowButton("< grid", ImGuiDir_Down)) {
-            increase_div();
-        }
     }
     ImGui::End();
 }

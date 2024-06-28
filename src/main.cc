@@ -21,8 +21,9 @@ const unsigned SCREEN_HEIGHT = 720;
 
 const unsigned SCREEN_FPS = display_mode.refresh_rate;
 
+const double SCENE_WIDTH = 25;
 double RENDER_SCALE = (double)SCREEN_WIDTH / SCENE_WIDTH;
-const double SCENE_HEIGHT = (SCREEN_HEIGHT - STATUSBAR_HEIGHT) / RENDER_SCALE;
+const double SCENE_HEIGHT = SCREEN_HEIGHT / RENDER_SCALE;
 
 SDL_Window* window(nullptr);
 SDL_Renderer* renderer(nullptr);
@@ -65,7 +66,7 @@ void init_window_and_renderer() {
     // Check that the renderer has fullscreen resolution
     if (w != display_mode.w || h != display_mode.h) {
         std::cerr << "The renderer doesn't match fullscreen resolution\n";
-        exit(1);
+        // exit(1);
     }
 #endif 
     std::cout << "Renderer output size: " << w << " x " << h << "\n";
@@ -83,6 +84,9 @@ void init_window_and_renderer() {
     if (!font) {
         std::cerr << "Failed to load the font!\n";
     }
+
+    // SDL_Surface* icon(IMG_Load("Spacetime_curvature.jpg"));
+    // SDL_SetWindowIcon(window, icon);
 }
 
 SDL_DisplayMode get_screen_dimensions() {

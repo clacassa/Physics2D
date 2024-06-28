@@ -10,35 +10,30 @@
 
 //extern const unsigned SCREEN_WIDTH;
 
-constexpr float spring_default_stiffness(25.0f);
-constexpr float spring_infnite_stiffness(1e6f);
+constexpr float spring_default_stiffness(0.5 * stl_steel_density);
+constexpr float spring_infinite_stiffness(1e4f * stl_steel_density);
 
 class Editor {
 public:
-    const double DIV_MIN = SCENE_WIDTH / 100;
-    const double DIV_MAX = SCENE_WIDTH / 20;
-
     enum BodyShape { BALL = 0, RECTANGLE };
 
-    typedef std::vector<std::vector<Vector2>> Grid;
+    typedef std::vector<std::vector<Vector2>> Quadrant;
 
     Editor(SDL_Renderer* renderer, TTF_Font* font, double division);
     virtual ~Editor() {}
 
     void render();
-    void imgui_controls(bool* editor_active);
+    void show_controls(bool* editor_active);
     // Return the node in window coordinates closest to the point p
     Vector2 track_point(Vector2 p);
-    void increase_div();
-    void decrease_div();
     void update_grid();
 
     inline double get_div() const { return div; }
+    inline Vector2 get_active_node() const { return active_node; }
     inline BodyShape get_body_shape() const { return body_shape; }
     inline BodyType get_body_type() const { return body_type; }
     inline bool get_enabled() const { return enabled_body; }
     inline bool get_show_help() const { return show_help_banner; }
-    // inline bool get_stiff_spring() const { return spring_very_stiff; }
     inline float get_stiffness() const { return current_stiffness; }
     inline Spring::DampingType get_damping() const { return damping; }
 
@@ -49,8 +44,7 @@ public:
     inline void set_spring_damping(const Spring::DampingType damping) { this->damping = damping; }
 private:
     double div;
-    size_t n;
-    Grid m_grid;
+    Quadrant m_first_quad, m_second_quad, m_third_quad, m_fourth_quad;
     Vector2 active_node;
 
     // Rendering
