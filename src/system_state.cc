@@ -200,8 +200,8 @@ void SystemState::render(SDL_Renderer* renderer, bool running, Settings& setting
     if (settings.draw_contact_points) {
         SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
         for (auto contact : m_contacts) {
-            render_fill_circle_fast(renderer, contact->contact_points[0], 2.5 / RENDER_SCALE);
-            render_fill_circle_fast(renderer, contact->contact_points[1], 2.5 / RENDER_SCALE);
+            render_fill_circle_fast(renderer, contact->contact_points[0], 3.5 / RENDER_SCALE);
+            render_fill_circle_fast(renderer, contact->contact_points[1], 3.5 / RENDER_SCALE);
         }
     }
 
@@ -209,7 +209,7 @@ void SystemState::render(SDL_Renderer* renderer, bool running, Settings& setting
         SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
         for (auto contact : m_contacts) {
             const Vector2 p(contact->contact_points[0]);
-            render_line(renderer, p, p + contact->normal / 10.0);
+            render_line(renderer, p, p + contact->normal / RENDER_SCALE * 20);
         }
     }
 
@@ -243,7 +243,7 @@ void SystemState::add_ball(Vector2 pos, double radius, BodyType type, bool enabl
 }
 
 void SystemState::add_rectangle(Vector2 p, double w, double h, BodyType type, bool enabled, Vector2 v) {
-    const std::vector<Vector2> vertices{
+    const Vertices vertices{
         {p.x - w / 2, p.y + h / 2},
         {p.x - w / 2, p.y - h / 2},
         {p.x + w / 2, p.y - h / 2},
