@@ -166,7 +166,7 @@ void solve_wall_collision(RigidBody* body, Manifold collision) {
         Vector2 j(n * impulse);
         body->linear_impulse(-j * body->get_inv_m());
         Vector2 r(r_list[i]);
-        body->angular_impulse(-impulse * body->get_inv_I() * cross2(r, n));
+        body->angular_impulse(-impulse * body->get_inv_I() * cross2(r, n) * 0.5);
 
 #ifdef FRICTION
         Vector2 j_f(friction_list[i]);
@@ -321,13 +321,13 @@ Manifold detect_collision(RigidBody* a, RigidBody* b, double& gjk_time, double& 
         if (!b_is_polygon) {
             result.intersecting = intersect_circle_circle(a, b, result);
         }else {
-            result.intersecting = intersect_circle_polygon(a, b, result);
-            // launch_GJK_EPA(a, b, result, gjk_time, epa_time);
+            // result.intersecting = intersect_circle_polygon(a, b, result);
+            launch_GJK_EPA(a, b, result, gjk_time, epa_time);
         }
     }else if (!b_is_polygon) {
-        result.intersecting = intersect_circle_polygon(b, a, result);
-        result.normal *= -1;
-        // launch_GJK_EPA(a, b, result, gjk_time, epa_time);
+        // result.intersecting = intersect_circle_polygon(b, a, result);
+        // result.normal *= -1;
+        launch_GJK_EPA(a, b, result, gjk_time, epa_time);
     }else { 
 # ifdef GJK_EPA
         launch_GJK_EPA(a, b, result, gjk_time, epa_time);
