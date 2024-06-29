@@ -37,6 +37,11 @@ Application::Application(SDL_Window* window, SDL_Renderer* renderer, double w, d
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
+    // Center camera
+    camera::translate_screen_x(SCREEN_WIDTH * 0.5);
+    camera::translate_screen_y(SCREEN_HEIGHT * 0.5);
+    m_editor.update_grid();
+
     SDL_SetCursor(m_crosshair_cursor);
 }
 
@@ -67,8 +72,6 @@ int Application::run() {
         return m_exit_status;
     }
 
-    camera::translate_screen_x(SCREEN_WIDTH * 0.5);
-    camera::translate_screen_y(SCREEN_HEIGHT * 0.5);
     VTextLayout left_panel(m_renderer, 10, 10);
     left_panel.add_texture(text_color, m_font_main);
     left_panel.add_texture(text_color, m_font_main);
