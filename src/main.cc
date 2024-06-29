@@ -19,7 +19,8 @@ const unsigned SCREEN_WIDTH = 1280;
 const unsigned SCREEN_HEIGHT = 720;
 #endif
 
-const unsigned SCREEN_FPS = display_mode.refresh_rate;
+const unsigned SCREEN_FPS = display_mode.refresh_rate;;
+const unsigned SCREEN_TICKS_PER_FRAME = 1000 / SCREEN_FPS;
 
 const double SCENE_WIDTH = 25;
 double RENDER_SCALE = (double)SCREEN_WIDTH / SCENE_WIDTH;

@@ -18,6 +18,7 @@ extern double RENDER_SCALE;                 // Pixel to meter ratio (#of px for 
 extern const double SCENE_HEIGHT;
 
 extern const unsigned SCREEN_FPS;
+extern const unsigned SCREEN_TICKS_PER_FRAME;
 
 const unsigned STATUSBAR_HEIGHT(18);   // In pixels
 

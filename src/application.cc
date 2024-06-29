@@ -12,8 +12,6 @@
 #include "render.h"
 #include "config.h"
 
-// constexpr unsigned SCREEN_FPS(60);
-const unsigned SCREEN_TICKS_PER_FRAME(1000 / SCREEN_FPS);
 constexpr unsigned STEPS_PER_FRAME(50);
 
 Application::Application(SDL_Window* window, SDL_Renderer* renderer, double w, double h,
