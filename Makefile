@@ -33,7 +33,7 @@ endif
 #------------------------
 
 all: setup $(OUT)
-	@echo -e "\x1b[32mBuild complete\x1b[0m for" $(PLATFORM_MSG)
+	@printf "%b\n" "\033[32mBuild complete\033[0m for $(PLATFORM_MSG)"
 	@echo $(CONFIG_MSG)
 
 $(OUT): $(OFILES) $(IMGUI_OBJ)
