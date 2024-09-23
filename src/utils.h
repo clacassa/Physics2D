@@ -15,6 +15,9 @@
  */
 std::string truncate_to_string(double n, int precision = 100);
 
+double deg2rad(const double deg_angle);
+double rad2deg(const double rad_angle);
+
 
 class LTimer {
 public:

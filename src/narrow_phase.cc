@@ -1,0 +1,714 @@
+#include <climits>
+#include <chrono>
+#include "narrow_phase.h"
+#include "rigid_body.h"
+#include "config.h"
+
+using namespace std::chrono;
+
+
+namespace {
+    // A 2D simplex (point, segment or triangle)
+    typedef std::vector<Vector2> Simplex;
+    // Pairs of the points of A and B that created the Minkowski difference points
+    typedef std::vector<std::array<Vector2, 2>> SourcePoints;
+
+    constexpr unsigned GJK_max_iterations(1e4);
+    constexpr unsigned GJK_dist_max_iterations(1e3);
+    constexpr double   GJK_dist_epsilon(1e-7);
+    constexpr unsigned EPA_max_iterations(1e6);
+    constexpr double   EPA_epsilon(1e-10);
+
+    struct SimplexEdge {
+        double distance = 0;
+        Vector2 normal;
+        unsigned index = 0;
+    };
+
+    struct Edge {
+        Vector2 closest_vertex;
+        Vector2 A;
+        Vector2 B;
+        Edge(Vector2 C_, Vector2 A_, Vector2 B_) : closest_vertex(C_), A(A_), B(B_) {}
+        Edge() = default;
+    };
+
+    // SAT
+    Manifold intersect_circle_circle(RigidBody* a, RigidBody* b);
+    Manifold intersect_circle_polygon(RigidBody* a, RigidBody* b);
+    Manifold intersect_polygon_polygon(RigidBody* a, RigidBody* b);
+
+    // GJK coupled with EPA
+    Manifold launch_GJK_EPA(RigidBody* a, RigidBody* b, double& gjk_time, double& epa_time);
+
+    /**
+     * @brief GJK algorithm, detects the intersection between two convex shapes. GJK iteratively tries to find a simplex that contains the origin using features of the Minkowski difference of the two shapes.
+     * @param s The initial simplex, empty
+     * @param a Convex shape A
+     * @param b Convex shape B
+     * @return Whether the shapes intersect or not.
+     */
+    bool intersect_GJK(Simplex& s, SourcePoints& shape_points, RigidBody* a, RigidBody* b);
+
+    /**
+     * @brief Given a simplex, reduce it to its closest feature to the origin and find the direction to which it should be expanded in order to encompass the origin.
+     * @param s The simplex from the previous iteration
+     * @param direction The new direction towards the origin
+     * @return Whether the newly created simplex contains the origin.
+     */
+    bool nearest_simplex(Simplex& s, Vector2& direction, SourcePoints& points);
+
+        /**
+     * @brief Expanding Polytope Algorithm, finds the point in Minkowski difference the closest to the origin. EPA starts from the simplex given by GJK and iteratively expand it until one of its edges is close enough to the closest point to the origin on the Minkowski difference countour. It can then decuce the collision normal, the penetration depth and the contact points.
+     * @param s Simplex given by GJK
+     * @param a Convex shape A
+     * @param b Convex shape B
+     * @param shape_points The source points of A and B that were used to create the simplex
+     * @param result The resulting information of the collision (normal, depth, contact points)
+     */
+    void EPA(Simplex s, SourcePoints points, RigidBody* a, RigidBody* b, Manifold& result);
+
+    /**
+     * @brief Given a simplex, find its closest edge to the origin.
+     * @param s Simplex containing the origin
+     * @param clockwise Whether the simplex is CW or CCW oriented
+     * @return The closest edge to the origin of the simplex.
+     */
+    SimplexEdge closest_edge_to_origin(Simplex s, const bool clockwise);
+
+    /**
+     * @brief Computes all the contact points (manifold) implied in a collision between two bodies.
+     * @param a Body 1
+     * @param b Body 2
+     * @param manifold Partial manifold containing the normal and depth of the collision
+     * @return The collision information completed with all the contact points.
+     */
+    Manifold get_contact_points(RigidBody* a, RigidBody* b, const Manifold& manifold);
+
+    /**
+     * @brief Computes the closest feature (vertex and edge) of a body to another implied in a collision.
+     * @param body The body
+     * @param n The collision normal, gives the direction of the collision
+     * @return The closest feature of the body in the direction of the collision.
+     */
+    Edge closest_feature(RigidBody* body, Vector2 n);
+
+    std::vector<Vector2> clip_features(Vector2 v1, Vector2 v2, Vector2 edge, double threshold);
+
+    /**
+     * @brief Computes the distance between two non intersecting convex shapes.
+     * @return The distance between the two shapes.
+     */
+    double distance_GJK(Simplex& s, SourcePoints& points, RigidBody* a, RigidBody* b);
+
+    /**
+     * @brief Finds the closest point to the origin on the edge formed by A and B.
+     * @param A First point of the edge
+     * @param B Second point of the edge
+     * @return The closest point to the origin on the edge formed by A and B.
+     */
+    Vector2 closest_point_to_origin(const Vector2& A, const Vector2& B);
+
+    /**
+     * @brief Computes the closest points of two shapes separated from each other using convex combination, based on the simplex and the Minkowski difference points generated by GJK distance algorithm.
+     * @param s The closest edge (2-simplex) to the origin from the Minkowski difference
+     * @param points The respective points of the two shapes that created the simplex
+     * @return The closest point on each shape.
+     */
+    ClosestPoints convex_combination(Simplex s, const SourcePoints& points);
+}
+
+
+Vector2 support(RigidBody* body, Vector2 d) {
+    Vector2 support;
+    if (body->has_vertices()) {
+        double max(-INT_MAX);
+        for (auto v : body->get_vertices()) {
+            double projection(dot2(v, d));
+            if (projection >= max) {
+                max = projection;
+                support = v;
+            }
+        }
+    }else {
+        support = body->get_p() + d.normalized() * body->get_radius();
+    }
+
+    return support;
+}
+
+Vector2 support(RigidBody* body, Vector2 d, Vector2 skip_me) {
+    Vector2 support;
+    if (body->has_vertices()) {
+        double max(-INT_MAX);
+        for (auto v : body->get_vertices()) {
+            if (v == skip_me) {
+                continue; 
+            }
+
+            double projection(dot2(v, d));
+            if (projection >= max) {
+                max = projection;
+                support = v;
+            }
+        }
+    }else {
+        support = body->get_p() + d.normalized() * body->get_radius();
+    }
+
+    return support;
+}
+
+
+Manifold detect_collision(RigidBody* a, RigidBody* b, double& gjk_time, double& epa_time) {
+    Manifold result;
+    if (!a->is_dynamic() && !b->is_dynamic()) {
+        return result;
+    }
+#ifdef SAT
+    const bool a_is_polygon(a->has_vertices());
+    const bool b_is_polygon(b->has_vertices());
+
+    if (!a_is_polygon) {
+        if (!b_is_polygon) {
+            result = intersect_circle_circle(a, b);
+        }else {
+            // result.intersecting = intersect_circle_polygon(a, b, result);
+            result = launch_GJK_EPA(a, b, gjk_time, epa_time);
+        }
+    }else if (!b_is_polygon) {
+        // result.intersecting = intersect_circle_polygon(b, a, result);
+        // result.normal *= -1;
+        result = launch_GJK_EPA(a, b, gjk_time, epa_time);
+    }else { 
+# ifdef GJK_EPA
+        result = launch_GJK_EPA(a, b, gjk_time, epa_time);
+# else
+        result = intersect_polygon_polygon(a, b);
+# endif /* GJK_EPA */
+    }
+#else
+# ifdef GJK_EPA
+    result = launch_GJK_EPA(a, b, gjk_time, epa_time);
+# endif /* GJK_EPA */
+#endif /* SAT */
+    return result;
+}
+
+
+ProximityInfo proximity_query(RigidBody* a, RigidBody* b) {
+    ProximityInfo result;
+
+    Simplex s;
+    SourcePoints points;
+    result.distance = distance_GJK(s, points, a, b);
+    result.points = convex_combination(s, points);
+
+    return result;
+}
+
+
+namespace {
+    Manifold intersect_circle_circle(RigidBody* a, RigidBody* b) {
+        Manifold result;
+        double r_a(a->get_radius());
+        double r_b(b->get_radius());
+        Vector2 axis(b->get_p() - a->get_p());
+
+        if (axis.norm() <= r_a + r_b) {
+            result.normal = axis.normalized();
+            result.depth = r_a + r_b - axis.norm();
+            result.contact_points.push_back(a->get_p() + result.normal * r_a);
+            result.count = 1;
+            result.intersecting = true;
+        }
+
+        result.intersecting = false;
+        return result;
+    }
+
+    Manifold intersect_circle_polygon(RigidBody* a, RigidBody* b) {
+        Manifold result;
+        auto vertices(b->get_vertices());
+        result.depth = INT_MAX;
+        // Separation Axis Theorem
+        for (size_t i(0); i < vertices.size(); ++i) {
+            Vector2 A(vertices[i]);
+            Vector2 B(vertices[(i + 1) % vertices.size()]);
+            Vector2 edge(B - A);
+            Vector2 normal(edge.normal());
+            Vector2 u(a->get_p() - normal * a->get_radius() - vertices[i]);
+
+            double support_dist(dot2(u, normal));
+            if (support_dist >= 0) {
+                result.intersecting = false;
+                break;
+            }
+
+            double projection(proj2(a->get_p(), A, edge).norm());
+            if (projection < edge.norm() && dot2(u, edge) > 0) {
+                if (b->contains_point(u + A)) {
+                    result.depth = abs(support_dist);
+                    result.normal = -normal;
+                    result.contact_points.push_back(u + vertices[i] + result.normal * result.depth);
+                    result.count += 1;
+                    result.intersecting = true;
+                    break;
+                }
+            }else {
+                if (a->contains_point(A)) {
+                    double depth_prime(a->get_radius() - (A - a->get_p()).norm());
+                    if (depth_prime < result.depth) {
+                        result.normal = (A - a->get_p()).normalized();
+                        result.depth = depth_prime;
+                        result.contact_points.push_back(A);
+                        result.count += 1;
+                    }
+                }else if (a->contains_point(B)) {
+                    double depth_prime(a->get_radius() - (B - a->get_p()).norm());
+                    if (depth_prime < result.depth) {
+                        result.normal = (B - a->get_p()).normalized();
+                        result.depth = depth_prime;
+                        result.contact_points.push_back(B);
+                        result.count += 1;
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
+    Manifold intersect_polygon_polygon(RigidBody* a, RigidBody* b) {
+        Manifold result;
+        auto a_vertices(a->get_vertices());
+        auto b_vertices(b->get_vertices());
+        result.depth = INT_MAX;
+        result.contact_points.push_back(Vector2::zero());
+        // Separation Axis Theorem
+        for (size_t i(0); i < a_vertices.size(); ++i) {
+            Vector2 edge(a_vertices[(i + 1) % a_vertices.size()] - a_vertices[i]);
+            Vector2 normal(edge.normal());
+            bool all_in_front(true);
+            double current_depth(0);
+            for (auto vertex : b_vertices) {
+                double projection(dot2(vertex - a_vertices[i], normal));
+                if (projection <= 0) {
+                    all_in_front = false;
+                    if (abs(projection) > current_depth && a->contains_point(vertex)) {
+                        current_depth = abs(projection);
+                        if (current_depth < result.depth) {
+                            result.depth = current_depth;
+                            result.normal = normal;
+                            result.contact_points[0] = vertex + result.normal * result.depth;
+                        }
+                    }
+                }
+            }
+            if (all_in_front) {
+                result.intersecting = false;
+                return result;
+            }
+        }
+        double depth_2(1e6);
+        Vector2 n_2;
+        Vector2 p_2;
+        for (size_t i(0); i < b_vertices.size(); ++i) {
+            Vector2 edge(b_vertices[(i + 1) % b_vertices.size()] - b_vertices[i]);
+            Vector2 normal(edge.normal());
+            bool all_in_front(true);
+            double current_depth(0);
+            for (auto vertex : a_vertices) {
+                double projection(dot2(vertex - b_vertices[i], normal));
+                if (projection <= 0) {
+                    all_in_front = false;
+                    if (abs(projection) > current_depth && b->contains_point(vertex)) {
+                        current_depth = abs(projection);
+                        if (current_depth < depth_2) {
+                            depth_2 = current_depth;
+                            n_2 = normal * -1;
+                            p_2 = vertex + n_2 * depth_2;
+                        }
+                    }
+                }
+            }
+            if (all_in_front) {
+                result.intersecting = false;
+                return result;
+            }
+        }
+
+        if ((depth_2 >= result.depth && depth_2 != INT_MAX) || result.depth == INT_MAX) {
+            result.normal = n_2;
+            result.contact_points[0] = p_2;
+            result.depth = depth_2;
+        }
+        result.intersecting = true;
+        return result;
+    }
+
+    Manifold launch_GJK_EPA(RigidBody* a, RigidBody* b, double& time_1, double& time_2) {
+        Manifold result;
+        Simplex s;
+        SourcePoints points;
+        auto start(steady_clock::now());
+        result.intersecting = intersect_GJK(s, points, a, b);
+        auto t1(steady_clock::now());
+
+        time_1 += duration_cast<microseconds>(t1 - start).count();
+
+        if (result.intersecting) {
+            auto t2(steady_clock::now());
+            EPA(s, points, a, b, result);
+            auto t3(steady_clock::now());
+
+            time_2 += duration_cast<microseconds>(t3 - t2).count();
+
+            result = get_contact_points(a, b, result);
+        }
+
+        return result;
+    }
+
+    bool intersect_GJK(Simplex& s, SourcePoints& shape_points, RigidBody* a, RigidBody* b) {
+        Vector2 axis(1, 0);
+        Vector2 S(support(a, axis) - support(b, -axis));
+        s.push_back(S);
+        axis = -axis;
+
+        unsigned watchdog(GJK_max_iterations);
+        while (--watchdog) {
+            Vector2 supp_a(support(a, axis));
+            Vector2 supp_b(support(b, -axis));
+            Vector2 A(supp_a - supp_b);
+
+            s.push_back(A);
+            shape_points.push_back({supp_a, supp_b});
+
+            if (dot2(A, axis) <= 0) {
+                return false;
+            }
+
+            if (nearest_simplex(s, axis, shape_points)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool nearest_simplex(Simplex& s, Vector2& D, SourcePoints& shape_points) {
+        const Vector2 A(s.back());
+        const Vector2 AO(-A);
+        const size_t n(s.size());
+
+        if (n == 3) {
+            const Vector2 B(s[1]);
+            const Vector2 C(s[0]);
+
+            const Vector2 AB(B - A);
+            const Vector2 AC(C - A);
+
+            const Vector2 AB_perp(triple_product(-AB, AC, AB));
+            const Vector2 AC_perp(triple_product(-AC, AB, AC));
+
+            if (dot2(AB_perp, AO) > 0) {
+                s.erase(s.begin());
+                shape_points.erase(shape_points.begin());
+                D = AB_perp;
+            }else {
+                if (dot2(AC_perp, AO) > 0) {
+                    s.erase(s.begin() + 1);
+                    shape_points.erase(shape_points.begin() + 1);
+                    D = AC_perp;
+                }else {
+                    return true;
+                }
+            }
+        }else if (n == 2) {
+            const Vector2 B(s[0]);
+            const Vector2 AB(B - A);
+            const Vector2 AB_perp(triple_product(-AB, AB, AO));
+            D = AB_perp;
+        }else {
+            D = -A;
+        }
+        return false;
+    }
+
+    void EPA(Simplex s, SourcePoints points, RigidBody* a, RigidBody* b, Manifold& result) {
+        // Determine the winding of the simplex
+        double winding(0);
+        for (size_t i(0); i < s.size() - 1; ++i) {
+            winding += s[i].x * s[i + 1].y - s[i + 1].x * s[i].y;
+        }
+        const bool clockwise(winding < 0);
+
+        unsigned watchdog(EPA_max_iterations);
+        while (--watchdog) {
+            SimplexEdge e(closest_edge_to_origin(s, clockwise));
+            Vector2 supp_a(support(a, e.normal));
+            Vector2 supp_b(support(b, -e.normal));
+            Vector2 supp(supp_a - supp_b);
+            double d(dot2(supp, e.normal));
+            if (d - e.distance < EPA_epsilon) {
+                result.normal = e.normal;
+                result.depth = d;
+                Vector2 MTV(-e.normal * d);
+                break;
+            }else {
+                s.insert(s.begin() + e.index, supp);
+                points.insert(points.begin() + e.index, {supp_a, supp_b});
+            }
+        }        
+    }
+
+    SimplexEdge closest_edge_to_origin(Simplex s, const bool clockwise) {
+        SimplexEdge closest;
+        closest.distance = INT_MAX;
+
+        for (size_t i(0); i < s.size(); i++) {
+            size_t j((i + 1) == s.size() ? 0 : i + 1);
+            Vector2 A(s[i]);
+            Vector2 B(s[j]);
+            Vector2 edge(B - A);
+            // Vector2 ABO(triple_product(edge * -1, edge, A).normalized());
+            Vector2 ABO;
+            if (clockwise) {
+                ABO = {edge.y, -edge.x};
+            }else {
+                ABO = {-edge.y, edge.x};
+            }
+            ABO = ABO.normalized();
+            // Distance from the origin to the edge
+            double d(dot2(ABO, A));
+            // Check the distance against the other distances
+            if (d < closest.distance) {
+                closest.distance = d;
+                closest.normal = ABO;
+                closest.index = j;
+            }
+        }
+
+        return closest;
+    }
+
+
+    Manifold get_contact_points(RigidBody* a, RigidBody* b, const Manifold& manifold) {
+        const Vector2 n(manifold.normal);
+        Manifold result(manifold);
+
+        // Curved shapes
+        if (!a->has_vertices()) {
+            result.contact_points.push_back(support(a, n));
+            result.count = 1;
+            return result;
+        }
+
+        if (!b->has_vertices()) {
+            result.contact_points.push_back(support(b, -n));
+            result.count = 1;
+            return result;
+        }
+
+        Edge edge1(closest_feature(a, n));
+        Edge edge2(closest_feature(b, -n));
+
+        Edge ref, inc;
+        bool flip(false);
+        if (abs(dot2(edge1.B - edge1.A, n)) <= abs(dot2(edge2.B - edge2.A, n))) {
+            ref = edge1;
+            inc = edge2;
+        }else {
+            ref = edge2;
+            inc = edge1;
+            flip = true;
+        }
+
+        Vector2 ref_dir((ref.B - ref.A).normalized());
+
+        double threshold1(dot2(ref_dir, ref.A));
+        std::vector<Vector2> clipped(clip_features(inc.A, inc.B, ref_dir, threshold1));
+        if (clipped.size() < 2) {
+            return manifold;
+        }
+
+        double threshold2(dot2(ref_dir, ref.B));
+        clipped = clip_features(clipped[0], clipped[1], -ref_dir, -threshold2);
+        if (clipped.size() < 2) {
+            return manifold;
+        }
+
+        Vector2 ref_normal(-ref_dir.normal());
+
+        double max(dot2(ref_normal, ref.closest_vertex));
+        if (dot2(ref_normal, clipped[0]) < max) {
+            clipped.erase(clipped.begin());
+        }
+        if (dot2(ref_normal, clipped.back()) < max) {
+            clipped.erase(clipped.begin() + clipped.size() - 1);
+        }
+
+        result.contact_points = clipped;
+        result.count = clipped.size();
+        return result;
+    }
+
+    Edge closest_feature(RigidBody* body, Vector2 n) {
+        const Vertices vertices(body->get_vertices());
+        const unsigned count(vertices.size());
+        unsigned index(0);
+
+        double max(-INT_MAX);
+        for (unsigned i(0); i < count; ++i) {
+            double projection(dot2(n, vertices[i]));
+            if (projection >= max) {
+                max = projection;
+                index = i;
+            }
+        }
+
+        const Vector2 v(vertices[index]);
+        const Vector2 v0(vertices[index == 0 ? count - 1 : index - 1]);
+        const Vector2 v1(vertices[index == count - 1 ? 0 : index + 1]);
+
+        const Vector2 R((v - v0).normalized());
+        const Vector2 L((v - v1).normalized());
+
+        if (dot2(R, n) <= dot2(L, n)) {
+            return Edge(v, v0, v);
+        }    
+
+        return Edge(v, v, v1);
+    }
+
+    std::vector<Vector2> clip_features(Vector2 v1, Vector2 v2, Vector2 edge, double threshold) {
+        std::vector<Vector2> clipped;
+        double d1(dot2(edge, v1) - threshold);
+        double d2(dot2(edge, v2) - threshold);
+
+        if (d1 >= 0) {
+            clipped.push_back(v1);
+        }
+        if (d2 >= 0) {
+            clipped.push_back(v2);
+        }
+
+        if (d1 * d2 < 0) {
+            Vector2 clipped_edge(v2 - v1);
+            const double u(d1 / (d1 - d2));
+            clipped_edge *= u;
+            clipped_edge += v1;
+
+            clipped.push_back(clipped_edge);
+        }
+
+        return clipped;
+    }
+
+
+    double distance_GJK(Simplex& s, SourcePoints& points, RigidBody* a, RigidBody* b) {
+        Vector2 D(a->get_p() - b->get_p());
+
+        const Vector2 supp_a1(support(a, D));
+        const Vector2 supp_b1(support(b, -D));
+        s.push_back(supp_a1 - supp_b1);
+        points.push_back({supp_a1, supp_b1});
+
+        const Vector2 supp_a2(support(a, -D));
+        const Vector2 supp_b2(support(b, D));
+        s.push_back(supp_a2 - supp_b2);
+        points.push_back({supp_a2, supp_b2});
+
+        D = closest_point_to_origin(s[0], s[1]);
+
+        unsigned watchdog(GJK_dist_max_iterations);
+        while (--watchdog) {
+            D = -D;
+
+            // assert(D != Vector2::zero());
+            if (D == Vector2::zero()) {
+                return 0;
+            }
+
+            const Vector2 supp_a(support(a, D));
+            const Vector2 supp_b(support(b, -D));
+            const Vector2 C(supp_a - supp_b);
+            double dc(dot2(C, D));
+            double da(dot2(s[0], D));
+
+            if (dc - da < GJK_dist_epsilon) {
+                return D.norm();
+            }
+
+            const Vector2 p1(closest_point_to_origin(s[0], C));
+            const Vector2 p2(closest_point_to_origin(C, s[1]));
+
+            if (p1.norm() < p2.norm()) {
+                s[1] = C;
+                points[1] = {supp_a, supp_b};
+                D = p1;
+            }else {
+                s[0] = C;
+                points[0] = {supp_a, supp_b};
+                D = p2;
+            }
+        }
+
+        return 0;
+    }
+
+    Vector2 closest_point_to_origin(const Vector2& A, const Vector2& B) {
+        Vector2 AB(B - A);
+        Vector2 AO(-A);
+
+        double sqr_length(dot2(AB, AB));
+
+        // C is computed by orthogonal projection on the segment
+        Vector2 C(AB * dot2(AO, AB) / sqr_length + A);
+        Vector2 AC(C - A);
+
+        double proj(dot2(AB, AC));
+
+        // If C lies on the simplex, i.e. between A and B, return it
+        if (cross2(AB, AC) < GJK_dist_epsilon && proj >= 0 && proj < sqr_length) {
+            return C;
+        }
+
+        // Else return either A or B depending on which is the closest to the origin
+        if (abs(dot2(A, AB)) < abs(dot2(B, AB))) {
+            return A;
+        }
+
+        return B;
+    }
+
+    ClosestPoints convex_combination(Simplex s, const SourcePoints& shape_points) {
+        ClosestPoints points;
+
+        Vector2 p1_a(shape_points[0][0]);
+        Vector2 p2_a(shape_points[1][0]);
+        Vector2 p1_b(shape_points[0][1]);
+        Vector2 p2_b(shape_points[1][1]);
+
+        Vector2 l(s[1] - s[0]);
+        if (l == Vector2(0, 0)) {
+            points.closest_a = p1_a;
+            points.closest_b = p1_b;
+        }else {
+            double lambda_2(-dot2(s[0], l) / dot2(l, l));
+            double lambda_1(1 - lambda_2);
+            if (lambda_1 < 0) {
+                points.closest_a = p2_a;
+                points.closest_b = p2_b;
+            } else if (lambda_2 < 0) {
+                points.closest_a = p1_a;
+                points.closest_b = p1_b;
+            }else {
+                points.closest_a = p1_a * lambda_1 + p2_a * lambda_2;
+                points.closest_b = p1_b * lambda_1 + p2_b * lambda_2;
+            }
+        }
+
+        return points;
+    }
+}

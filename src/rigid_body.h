@@ -17,8 +17,10 @@ struct AABB {
     Vector2 max; // Top right corner
 };
 
-constexpr double stl_steel_density(7930); // kg / m^3
-constexpr double stl_steel_restitution(0.78 * 0.75); // Restitution is reduced for tuning behavior
+constexpr double steel_density(7930); // kg / m^3
+constexpr double steel_restitution(0.78 * 0.75); // Restitution is reduced for tuning behavior
+constexpr double steel_static_friction(0.78);
+constexpr double steel_dynamic_friction(0.42);
 
 class RigidBody {
 public:
@@ -41,8 +43,9 @@ public:
     double p_energy() const;
 
     virtual void draw(SDL_Renderer* renderer) = 0;
-    void draw_forces(SDL_Renderer* renderer) const;
     void draw_trace(SDL_Renderer* renderer, bool update_trace);
+    void draw_bounding_box(SDL_Renderer* renderer);
+    void draw_forces(SDL_Renderer* renderer) const;
     void colorize(const SDL_Color color);
     void reset_color();
 

@@ -142,7 +142,7 @@ int Application::run() {
         // ImGui::ShowDemoWindow();
         // show_menubar();
         show_main_overlay(avg_fps);
-        show_options_panel();
+        show_settings_panel();
         bool property_open(true);
         show_property_editor(&property_open);
         ImGui::Render();
@@ -192,7 +192,8 @@ void Application::handle_event(SDL_Event& e, const double dt) {
                 break;
             case SDLK_0:
                 m_world.destroy_all();
-                demo_collision();
+                // demo_collision();
+                demo_stacking();
                 break;
             case SDLK_1:
                 m_ctrl.editor.active = false;
@@ -231,9 +232,9 @@ void Application::handle_event(SDL_Event& e, const double dt) {
             case SDLK_RIGHT:
                 m_world.move_focused_body({DIV / 5, 0}); break;
             case SDLK_x:
-                m_world.rotate_focused_body(-PI / 50); break;
+                m_world.rotate_focused_body(deg2rad(-5)); break;
             case SDLK_z:
-                m_world.rotate_focused_body(PI / 50); break;
+                m_world.rotate_focused_body(deg2rad(5)); break;
             case SDLK_h:
                 camera::translate_screen_x(-50);
                 break;
@@ -259,6 +260,9 @@ void Application::handle_event(SDL_Event& e, const double dt) {
                 if (m_ctrl.editor.active) {
                     m_editor.toggle_help();
                 }
+                break;
+            case SDLK_DELETE:
+                m_world.destroy_body();
                 break;
         }
     }
@@ -335,7 +339,11 @@ void Application::handle_event(SDL_Event& e, const double dt) {
                 camera::zoom_out();
             }
         }
-        m_editor.update_grid();
+
+        if (m_ctrl.editor.active) {
+            m_editor.update_grid();
+        }
+        
         int x, y;
         SDL_GetMouseState(&x, &y);
         Vector2 offset(camera::world_to_screen(m_ctrl.input.pointer) - Vector2(x, y));
@@ -349,6 +357,15 @@ void Application::demo_collision() {
     for (unsigned i(0); i < 250; ++i) {
         m_world.add_ball({SCENE_WIDTH * 0.25 + 0.001 * (rand() % 250),
                         SCENE_HEIGHT * 0.5 - 0.0625 + 0.001 * (rand() % 125)}, 0.01);
+    }
+}
+
+void Application::demo_stacking() {
+    m_world.add_rectangle({SCENE_WIDTH * 0.5, 0.5}, 5, 0.5, STATIC);
+    for (int i(0); i < 5; ++i) {
+        for (unsigned j(0); j < 10; ++j) {
+            m_world.add_rectangle({SCENE_WIDTH * 0.5 - 0.5 * (i % 2 == 0 ? i : -i - 1), 1.5 + j}, 0.5, 0.5);
+        }
     }
 }
 
@@ -442,14 +459,14 @@ void Application::show_placeholder_object() {
     if (node_open) {
         const unsigned n_rows(10);
         const char* fields[n_rows] = {
-            "Mass", 
-            "Energy", 
-            "PosX", 
-            "PosY", 
-            "VelX", 
-            "VelY", 
-            "Theta", 
-            "Omega", 
+            "Mass      [kg]", 
+            "Energy     [J]", 
+            "PosX       [m]", 
+            "PosY       [m]", 
+            "VelX     [m/s]", 
+            "VelY     [m/s]", 
+            "Theta    [deg]", 
+            "Omega  [rad/s]", 
             "Type", 
             "IsEnabled"
         };
@@ -460,7 +477,7 @@ void Application::show_placeholder_object() {
             (float)obj->get_p().y,
             (float)obj->get_v().x,
             (float)obj->get_v().y,
-            (float)obj->get_theta(),
+            (float)rad2deg(obj->get_theta()),
             (float)obj->get_omega()
         };
 
@@ -525,6 +542,7 @@ void Application::show_placeholder_object() {
 
         if (property_changed) {
             obj->move(Vector2(values[2], values[3]) - obj->get_p());
+            obj->rotate(deg2rad(values[6]) - obj->get_theta());
             obj->linear_impulse(Vector2(values[4], values[5]) - obj->get_v());
             obj->angular_impulse(values[7] - obj->get_omega());
         }
@@ -534,7 +552,7 @@ void Application::show_placeholder_object() {
     ImGui::PopID();
 }
 
-void Application::show_options_panel() {
+void Application::show_settings_panel() {
     ImGui::Begin("Settings");
     ImGui::BeginGroup();
     ImGui::Checkbox("Slow motion (x0.1)", &m_settings.slow_motion);
@@ -542,6 +560,8 @@ void Application::show_options_panel() {
     ImGui::Checkbox("Highlight collisions", &m_settings.highlight_collisions);
     ImGui::Checkbox("Draw contact points", &m_settings.draw_contact_points);
     ImGui::Checkbox("Draw collision normal", &m_settings.draw_collision_normal);
+    ImGui::Checkbox("Draw bounding boxes", &m_settings.draw_bounding_boxes);
+    ImGui::Checkbox("Draw distance proxys", &m_settings.draw_distance_proxys);
     ImGui::EndGroup();
     ImGui::End();
 }

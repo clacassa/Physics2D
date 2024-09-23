@@ -7,6 +7,8 @@ struct Settings {
     bool highlight_collisions;
     bool draw_contact_points;
     bool draw_collision_normal;
+    bool draw_bounding_boxes;
+    bool draw_distance_proxys;
 
     Settings();
     void reset();

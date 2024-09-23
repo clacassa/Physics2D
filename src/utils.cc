@@ -5,6 +5,7 @@
 #include <iomanip>
 #include "utils.h"
 #include "render.h"
+#include "config.h"
 
 /* https://stackoverflow.com/questions/41294368/truncating-a-double-floating-point-at-a-certain-number-of-digits
 */
@@ -26,6 +27,14 @@ std::string truncate_to_string(double n, int precision) {
         ss << remainder;
     }
     return ss.str();
+}
+
+double deg2rad(const double deg_angle) {
+    return deg_angle * PI / 180.0;
+}
+
+double rad2deg(const double rad_angle) {
+    return rad_angle * 180.0 / PI;
 }
 
 LTimer::LTimer()

@@ -12,9 +12,13 @@ void Settings::reset() {
     highlight_collisions = 1;
     draw_contact_points = 1;
     draw_collision_normal = 1;
+    draw_bounding_boxes = 1;
+    draw_distance_proxys = 1;
 #else
     highlight_collisions = 0;
     draw_contact_points = 0;
     draw_collision_normal = 0;
+    draw_bounding_boxes = 0;
+    draw_distance_proxys = 0;
 #endif
 }

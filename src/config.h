@@ -17,5 +17,6 @@
 
 constexpr double PI(3.14159265);
 constexpr double g(9.81);
+constexpr double air_viscosity(1.48e-5);
 
 #endif /* CONFIG_H */

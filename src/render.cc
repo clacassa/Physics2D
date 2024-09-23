@@ -43,8 +43,8 @@ void render_fill_circle_fast(SDL_Renderer * renderer, Vector2 center, double rad
     int radius(radius_);
 
     while (radius > 0) {
-        // 35 / 49 is a slightly biased approximation of 1/sqrt(2)
-        const int approximation(radius * 8 * 35 / 49);
+        // 70/99 is used as an approximation of 1/sqrt(2)
+        const int approximation(radius * 8 * 70 / 99);
         const int points_qty((approximation + (8 - 1)) & -8);
         SDL_Point points[points_qty];
         int draw_count(0);
@@ -94,12 +94,11 @@ void render_fill_circle_fast(SDL_Renderer * renderer, Vector2 center, double rad
 void render_circle(SDL_Renderer* renderer, Vector2 center, double radius) {
     Vector2 center_px(camera::world_to_screen(center));
     radius *= RENDER_SCALE;
-
     double error(-radius);
-    double x_(radius - 0.5);
-    double y_(0.5);
-    double cx(center_px.x - 0.5);
-    double cy(center_px.y - 0.5);
+    double x_(radius);
+    double y_(0);
+    double cx(center_px.x);
+    double cy(center_px.y);
 
     while (x_ >= y_) {
         SDL_RenderDrawPoint(renderer, (int)(cx + x_), (int)(cy + y_));
@@ -134,7 +133,7 @@ void render_rectangle(SDL_Renderer* renderer, Vector2 center, double w, double h
     w *= RENDER_SCALE;
     h *= RENDER_SCALE;
 
-    SDL_FRect rect{(float)px.x, (float)px.y, (float)w, (float)h};
+    SDL_FRect rect{(float)px.x - w * 0.5, (float)px.y - h * 0.5, (float)w + 1, (float)h + 1};
     SDL_RenderDrawRectF(renderer, &rect);
 }
 

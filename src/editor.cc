@@ -17,7 +17,7 @@ Editor::Editor(SDL_Renderer* renderer, TTF_Font* font, double division)
     enabled_body(true),
     show_help_banner(true),
     spring_very_stiff(false),
-    current_stiffness(spring_default_stiffness),
+    current_stiffness(spring_stiffness_default),
     damping(Spring::UNDERDAMPED)
 {
     update_grid();
@@ -264,10 +264,10 @@ void Editor::show_controls(bool* editor_active) {
 
         ImGui::SeparatorText("Spring type");
         ImGui::Checkbox("Infinitely stiff", &spring_very_stiff);
-        static float k(spring_very_stiff ? spring_infinite_stiffness : spring_default_stiffness);
+        static float k(spring_very_stiff ? spring_stiffness_infinite : spring_stiffness_default);
         ImGui::BeginDisabled(spring_very_stiff);
         if (spring_very_stiff) {
-            k = spring_infinite_stiffness;
+            k = spring_stiffness_infinite;
         }
         ImGui::InputFloat("Stiffness", &k);
         ImGui::EndDisabled();

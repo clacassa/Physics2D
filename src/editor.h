@@ -10,8 +10,8 @@
 
 //extern const unsigned SCREEN_WIDTH;
 
-constexpr float spring_default_stiffness(0.5 * stl_steel_density);
-constexpr float spring_infinite_stiffness(1e4f * stl_steel_density);
+constexpr float spring_stiffness_default(0.5 * steel_density);
+constexpr float spring_stiffness_infinite(1e4f * steel_density);
 
 class Editor {
 public:

@@ -2,6 +2,7 @@
 #include <array>
 #include "SDL_render.h"
 #include "rigid_body.h"
+#include "narrow_phase.h"
 #include "collision.h"
 #include "utils.h"
 #include "render.h"
@@ -26,7 +27,7 @@ RigidBody::RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, BodyType ty
     inv_m(1 / m),
     I(I_),
     inv_I(1 / I),
-    e(stl_steel_restitution),
+    e(steel_restitution),
     m_type(type_),
     enabled(enabled_),
     m_vertices(vertices),
@@ -61,7 +62,7 @@ RigidBody::RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, BodyType ty
     inv_m(1 / m),
     I(I_),
     inv_I(1 / I),
-    e(stl_steel_restitution),
+    e(steel_restitution),
     m_type(type_),
     enabled(enabled_),
     max_track_length(1e3),
@@ -173,11 +174,6 @@ double RigidBody::p_energy() const {
     return is_dynamic() * m * g * p.y;
 }
 
-void RigidBody::draw_forces(SDL_Renderer* renderer) const {
-    SDL_SetRenderDrawColor(renderer, 255, 0, 255, 255);
-    render_line(renderer, p, p + f / 50.0);
-}
-
 void RigidBody::draw_trace(SDL_Renderer* renderer, bool update_trace) {
     if (max_track_length > 0) {
         if (update_trace) {
@@ -198,6 +194,15 @@ void RigidBody::draw_trace(SDL_Renderer* renderer, bool update_trace) {
             }
         }
     }
+}
+
+void RigidBody::draw_bounding_box(SDL_Renderer* renderer) {
+    render_rectangle(renderer, p, m_aabb.max.x - m_aabb.min.x, m_aabb.max.y - m_aabb.min.y);
+}
+
+void RigidBody::draw_forces(SDL_Renderer* renderer) const {
+    SDL_SetRenderDrawColor(renderer, 255, 0, 255, 255);
+    render_line(renderer, p, p + f / 50.0);
 }
 
 void RigidBody::colorize(const SDL_Color color) {
@@ -237,7 +242,9 @@ std::string RigidBody::dump(bool gravity_enabled) const {
 Ball::Ball(Vector2 vel, Vector2 pos, double m, double r_, BodyType type, bool enabled)
 :   RigidBody(vel, pos, m, 0.5 * m * r_ * r_, type, enabled),
     r(r_)
-{}
+{
+    update_bounding_box();
+}
 
 std::vector<Vector2> Ball::get_vertices() const {
     // return std::vector<Vector2>{{r, 0}};
@@ -289,33 +296,31 @@ void Ball::handle_wall_collisions() {
         collision_h.normal = {-1, 0};
         collision_h.depth = r - p.x;
         p.x = r;
-        collision_h.contact_points[0] = {0, p.y};
+        collision_h.contact_points.push_back({0, p.y});
+        collision_h.count += 1;
     }else if (p.x + r > SCENE_WIDTH) {
         collision_h.normal = {1, 0};
         collision_h.depth = p.x + r - SCENE_WIDTH;
         p.x = SCENE_WIDTH - r;
-        collision_h.contact_points[0] = {SCENE_WIDTH, p.y};
+        collision_h.contact_points.push_back({SCENE_WIDTH, p.y});
+        collision_h.count += 1;
     }
     if (p.y - r < 0) {
         collision_v.normal = {0, -1};
         collision_v.depth = r - p.y;
         p.y = r;
-        collision_v.contact_points[0] = {p.x, 0};
+        collision_v.contact_points.push_back({p.x, 0});
+        collision_v.count += 1;
     }else if (p.y + r > SCENE_HEIGHT) {
         collision_v.normal = {0, 1};
         collision_v.depth = p.y + r - SCENE_HEIGHT;
         p.y = SCENE_HEIGHT - r;
-        collision_v.contact_points[0] = {p.x, SCENE_HEIGHT};
+        collision_v.contact_points.push_back({p.x, SCENE_HEIGHT});
+        collision_v.count += 1;
     }
 
-    collision_h.contact_points[1] = collision_h.contact_points[0];
-    collision_v.contact_points[1] = collision_v.contact_points[0];
-    if (collision_h.normal != Vector2::zero()) {
-        solve_wall_collision(this, collision_h);
-    }
-    if (collision_v.normal != Vector2::zero()) {
-        solve_wall_collision(this, collision_v);
-    }
+    solve_wall_collision(this, collision_h);
+    solve_wall_collision(this, collision_v);
 }
 
 void Ball::update_bounding_box() {
@@ -334,6 +339,7 @@ Rectangle::Rectangle(Vector2 vel, Vector2 pos, double m, double w_, double h_, V
     w(w_),
     h(h_)
 {
+    update_bounding_box();
     // omega = -PI / 4.0;
     // theta = PI / 4.0;
 }
@@ -375,58 +381,29 @@ void Rectangle::draw(SDL_Renderer* renderer) {
     for (unsigned i(0); i < width_px; ++i) {
         render_line(renderer, B + n * i * dw, A + n * i * dw);
     }
-    // SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-    // render_line(renderer, m_aabb.min.x, m_aabb.max.y, m_aabb.min.x, m_aabb.min.y);
-    // render_line(renderer, m_aabb.min.x, m_aabb.min.y, m_aabb.max.x, m_aabb.min.y);
-    // render_line(renderer, m_aabb.max.x, m_aabb.min.y, m_aabb.max.x, m_aabb.max.y);
-    // render_line(renderer, m_aabb.max.x, m_aabb.max.y, m_aabb.min.x, m_aabb.max.y);
-    // render_line(renderer, 0, 0, m_vertices[0].x, m_vertices[0].y);
-    // render_line(renderer, 0, 0, m_vertices[1].x, m_vertices[1].y);
-    // render_line(renderer, 0, 0, m_vertices[2].x, m_vertices[2].y);
-    // render_line(renderer, 0, 0, m_vertices[3].x, m_vertices[3].y);
-
-    // SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
-    // render_line(renderer, 0, 0, m_t.x / 1.0, m_t.y / 1.0);
-#ifdef DEBUG
-    //SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-    //render_fill_circle_fast(renderer, m_debug1, 3 / RENDER_SCALE);
-    //render_fill_circle_fast(renderer, m_debug2, 3 / RENDER_SCALE);
-#endif /* DEBUG */
 }
 
 void Rectangle::handle_wall_collisions() {
     Manifold collision_h, collision_v;
     Vector2 r1_h, r2_h;
     Vector2 r1_v, r2_v;
-    // int contacts(0);
+
     if (m_aabb.min.x <= 0) {
         collision_h.normal = {-1, 0};
         for (auto v : m_vertices) {
             if (v.x <= 0) {
-                if (r1_h != Vector2::zero()) {
-                    r2_h = v - p;
-                    break;
-                }
-                r1_h = v - p;
+                collision_h.contact_points.push_back(v);
+                ++collision_h.count;
             }
-        }
-        if (r2_h == Vector2::zero()) {
-            r2_h = r1_h;
         }
         p.x -= m_aabb.min.x;
     }else if (m_aabb.max.x >= SCENE_WIDTH) {
         collision_h.normal = {1, 0};
         for (auto v : m_vertices) {
             if (v.x >= SCENE_WIDTH) {
-                if (r1_h != Vector2::zero()) {
-                    r2_h = v - p;
-                    break;
-                }
-                r1_h = v - p;
+                collision_h.contact_points.push_back(v);
+                ++collision_h.count;
             }
-        }
-        if (r2_h == Vector2::zero()) {
-            r2_h = r1_h;
         }
         p.x -= (m_aabb.max.x - SCENE_WIDTH);
     }
@@ -434,42 +411,31 @@ void Rectangle::handle_wall_collisions() {
         collision_v.normal = {0, -1};
         for (auto v : m_vertices) {
             if (v.y <= 0) {
-                if (r1_v != Vector2::zero()) {
-                    r2_v = v - p;
-                    break;
-                }
-                r1_v = v - p;
+                collision_v.contact_points.push_back(v);
+                ++collision_v.count;
             }
-        }
-        if (r2_v == Vector2::zero()) {
-            r2_v = r1_v;
         }
         p.y -= m_aabb.min.y;
     }else if (m_aabb.max.y >= SCENE_HEIGHT) {
         collision_v.normal = {0, 1};
         for (auto v : m_vertices) {
             if (v.y >= SCENE_HEIGHT) {
-                if (r1_v != Vector2::zero()) {
-                    r2_v = v - p;
-                    break;
-                }
-                r1_v = v - p;
+                collision_v.contact_points.push_back(v);
+                ++collision_v.count;
             }
-        }
-        if (r2_v == Vector2::zero()) {
-            r2_v = r1_v;
         }
         p.y -= (m_aabb.max.y - SCENE_HEIGHT);
     }
 
-    if (collision_h.normal != Vector2::zero()) {
-        collision_h.contact_points[0] = p + r1_h;
-        collision_h.contact_points[1] = p + r2_h;
+    //const Vector2 r_h((r1_h + r2_h) * 0.5);
+    if (collision_h.count > 0) {
+        //collision_h.contact_points.push_back(p + r_h);
         solve_wall_collision(this, collision_h);
     }
-    if (collision_v.normal != Vector2::zero()) {
-        collision_v.contact_points[0] = p + r1_v;
-        collision_v.contact_points[1] = p + r2_v;
+
+    // const Vector2 r_v((r1_v + r2_v) * 0.5);
+    if (collision_v.count > 0) {
+        // collision_v.contact_points.push_back(p + r_v);
         solve_wall_collision(this, collision_v);
     }
 }

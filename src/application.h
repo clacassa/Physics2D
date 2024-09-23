@@ -36,13 +36,14 @@ private:
 
     // Demos
     void demo_collision();
+    void demo_stacking();
 
     // GUI
     void show_menubar();
     void show_main_overlay(const float avg_fps);
     void show_placeholder_object();
     void show_property_editor(bool* p_open);
-    void show_options_panel();
+    void show_settings_panel();
     void show_help_panel();
 };  
 

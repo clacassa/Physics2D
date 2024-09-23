@@ -2,6 +2,8 @@
 #include "SDL_render.h"
 #include "system_state.h"
 #include "rigid_body.h"
+#include "broad_phase.h"
+#include "narrow_phase.h"
 #include "collision.h"
 #include "utils.h"
 #include "render.h"
@@ -23,20 +25,7 @@ SystemState::SystemState()
 }
 
 SystemState::~SystemState() {
-    for (auto body : m_bodies) {
-        delete body;
-    }
-    m_bodies.clear();
-
-    for (auto contact : m_contacts) {
-        delete contact;
-    }
-    m_contacts.clear();
-
-    for (auto spring : m_springs) {
-        delete spring;
-    }
-    m_springs.clear();
+    destroy_all();
 }
 
 void SystemState::process(double dt, int steps, Settings& settings, bool perft) {
@@ -54,10 +43,8 @@ void SystemState::process(double dt, int steps, Settings& settings, bool perft) 
         body->reset_color();
     }
 
-    for (auto contact : m_contacts) {
-        delete contact;
-    }
-    m_contacts.clear();
+    destroy_contacts();
+    destroy_proxys();
 
     for (int i(0); i < steps; ++i) {
         auto start(steady_clock::now());
@@ -94,6 +81,7 @@ void SystemState::process(double dt, int steps, Settings& settings, bool perft) 
                 auto t6(steady_clock::now());
                 Manifold collision(detect_collision(a, b, m_perf_metrics.gjk_time, m_perf_metrics.epa_time));
                 auto t7(steady_clock::now());
+                m_perf_metrics.narrow_phase += duration_cast<microseconds>(t7 - t6).count();
 
                 if (collision.intersecting) {
                     if (i < 2) {
@@ -117,8 +105,9 @@ void SystemState::process(double dt, int steps, Settings& settings, bool perft) 
                         a->colorize({0, 128, 255, 255});
                         b->colorize({0, 255, 128, 255});
                     }
+                }else if (i > steps - 2) {
+                    m_proxys.push_back(new ProximityInfo(proximity_query(a, b)));
                 }
-                m_perf_metrics.narrow_phase += duration_cast<microseconds>(t7 - t6).count();
             }            
         }
 #else
@@ -197,19 +186,35 @@ void SystemState::render(SDL_Renderer* renderer, bool running, Settings& setting
         body->draw(renderer);
     }
 
+    if (settings.draw_bounding_boxes) {
+        SDL_SetRenderDrawColor(renderer, 102, 102, 255, 255);
+        for (auto body : m_bodies) {
+            body->draw_bounding_box(renderer);
+        }
+    }
+
     if (settings.draw_contact_points) {
         SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
         for (auto contact : m_contacts) {
-            render_fill_circle_fast(renderer, contact->contact_points[0], 3.5 / RENDER_SCALE);
-            render_fill_circle_fast(renderer, contact->contact_points[1], 3.5 / RENDER_SCALE);
+            for (auto point : contact->contact_points) {
+                render_fill_circle_fast(renderer, point, 3.5 / RENDER_SCALE);
+            }
         }
     }
 
     if (settings.draw_collision_normal) {
         SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
         for (auto contact : m_contacts) {
-            const Vector2 p(contact->contact_points[0]);
-            render_line(renderer, p, p + contact->normal / RENDER_SCALE * 20);
+            for (auto point : contact->contact_points) {
+                render_line(renderer, point, point + contact->normal / RENDER_SCALE * 20);
+            }
+        }
+    }
+
+    if (settings.draw_distance_proxys) {
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        for (auto prox : m_proxys) {
+            render_line(renderer, prox->points.closest_a, prox->points.closest_b);
         }
     }
 
@@ -238,8 +243,10 @@ void SystemState::add_ball(Vector2 pos, double radius, BodyType type, bool enabl
         Vector2 vel) {
     const double depth(radius);
     const double volume(PI * radius * radius * depth);
-    m_bodies.push_back(new Ball(vel, pos, stl_steel_density * volume, radius, type, enabled));
+    m_bodies.push_back(new Ball(vel, pos, steel_density * volume, radius, type, enabled));
     ++body_count;
+
+    m_sap.update_list(m_bodies);
 }
 
 void SystemState::add_rectangle(Vector2 p, double w, double h, BodyType type, bool enabled, Vector2 v) {
@@ -249,8 +256,10 @@ void SystemState::add_rectangle(Vector2 p, double w, double h, BodyType type, bo
         {p.x + w / 2, p.y - h / 2},
         {p.x + w / 2, p.y + h / 2}
     };
-    m_bodies.push_back(new Rectangle(v, p, stl_steel_density * w * h * h, w, h, vertices, type, enabled));
+    m_bodies.push_back(new Rectangle(v, p, steel_density * w * h * h, w, h, vertices, type, enabled));
     ++body_count;
+
+    m_sap.update_list(m_bodies);
 }
 
 void SystemState::add_spring(Vector2 p1, Vector2 p2, Spring::DampingType damping, float stiffness) {
@@ -277,6 +286,21 @@ void SystemState::add_spring(Vector2 p1, Vector2 p2, Spring::DampingType damping
     }
 }
 
+void SystemState::destroy_body() {
+    if (body_count > 0) {
+        delete m_bodies[focus];
+        m_bodies.erase(m_bodies.begin() + focus);
+
+        if (focus >= body_count - 1) {
+            focus -= focus > 0;
+        }
+
+        body_count = m_bodies.size();
+    }
+
+    m_sap.update_list(m_bodies);
+}
+
 void SystemState::destroy_all() {
     for (auto body : m_bodies) {
         delete body;
@@ -285,17 +309,15 @@ void SystemState::destroy_all() {
     body_count = 0;
     focus = 0;
 
-    for (auto contact : m_contacts) {
-        delete contact;
-    }
-    m_contacts.clear();
+    destroy_contacts();
+    destroy_proxys();
 
     for (auto spring : m_springs) {
         delete spring;
     }
     m_springs.clear();
 
-    m_sap.process(m_bodies);
+    m_sap.update_list(m_bodies);
 }
 
 std::string SystemState::dump_metrics() const {
@@ -417,4 +439,16 @@ void SystemState::PerfMetrics::average(double steps) {
     this->response_phase /= steps;
 }
 
+void SystemState::destroy_contacts() {
+    for (auto contact : m_contacts) {
+        delete contact;
+    }
+    m_contacts.clear();
+}
 
+void SystemState::destroy_proxys() {
+    for (auto prox : m_proxys) {
+        delete prox;
+    }
+    m_proxys.clear();
+}

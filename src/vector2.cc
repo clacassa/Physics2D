@@ -6,15 +6,17 @@ double Vector2::norm() const {
 }
 
 Vector2 Vector2::normal() const {
-    if (norm() == 0)
+    const double m_norm(norm());
+    if (m_norm == 0)
         return {0, 0};
-    return {y / norm(), -x / norm()};
+    return {y / m_norm, -x / m_norm};
 }
 
 Vector2 Vector2::normalized() const {
-    if (norm() == 0)
+    const double m_norm(norm());
+    if (m_norm == 0)
         return {0, 0};
-    return {x / norm(), y / norm()};
+    return {x / m_norm, y / m_norm};
 }
 
 Vector2 Vector2::rotated(const double alpha) const {

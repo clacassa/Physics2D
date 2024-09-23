@@ -6,19 +6,18 @@
 #include <array>
 #include <string>
 #include <chrono>
-#include "collision.h"  // SweepAndPrune
-#include "link.h"       // Spring::DampingType
+#include "broad_phase.h" // SweepAndPrune
+#include "link.h"        // Spring::DampingType
 #include "rigid_body.h"
 
 // Forward declarations
 struct Settings;
+struct ProximityInfo;
+struct Manifold;
 class RigidBody;
 
 class SystemState {
 public:
-    const double air_viscosity = 1.48e-5;
-    const SDL_Color focus_color = {255, 0, 255, 255};
-
     SystemState();
     virtual ~SystemState();
 
@@ -33,6 +32,7 @@ public:
             bool enabled = true, Vector2 vel = {0, 0});
     void add_spring(Vector2 p1, Vector2 p2, Spring::DampingType damping, float stiffness);
 
+    void destroy_body();
     void destroy_all();
     
     std::string dump_metrics() const;
@@ -72,6 +72,7 @@ private:
     unsigned focus;
 
     std::vector<Manifold*> m_contacts;
+    std::vector<ProximityInfo*> m_proxys;
 
     std::vector<Spring*> m_springs;
     std::array<Vector2, 3> m_force_fields;
@@ -80,6 +81,8 @@ private:
     PerfMetrics m_perf_metrics;
     
     void apply_forces();
+    void destroy_contacts();
+    void destroy_proxys();
 };
 
 #endif /* SYSTEM_STATE_H */
