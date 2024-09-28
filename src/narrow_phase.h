@@ -5,13 +5,14 @@
 #include <array>
 #include "vector2.h"
 
+struct Timer;
 class RigidBody;
 
 struct Manifold {
     bool intersecting = false;
     Vector2 normal;
     double depth = 0;
-    std::vector<Vector2> contact_points;
+    std::array<Vector2, 2> contact_points;
     unsigned count = 0;
 };
 
@@ -20,7 +21,7 @@ struct ClosestPoints {
     Vector2 closest_b;
 };
 
-struct ProximityInfo {
+struct DistanceInfo {
     double distance = 0;
     ClosestPoints points;
 };
@@ -41,7 +42,20 @@ Vector2 support(RigidBody* body, Vector2 d);
  */
 Vector2 support(RigidBody* body, Vector2 d, Vector2 skip_me);
 
-Manifold detect_collision(RigidBody* a, RigidBody* b, double& gjk_time, double& epa_time);
+Manifold detect_collision(RigidBody* a, RigidBody* b, Timer& gjk, Timer& epa, Timer& clip);
+
+// SAT
+Manifold collide_circle_circle(RigidBody* a, RigidBody* b);
+Manifold collide_circle_polygon(RigidBody* a, RigidBody* b);
+Manifold collide_polygon_polygon(RigidBody* a, RigidBody* b);
+
+/**
+ * @brief Determines if two convex shapes are colliding, and computes the contact manifold.
+ * Uses GJK for colliion detection, EPA for penetration vector,
+ * and clipping for contact point(s) calculation.
+ * @return The contact manifold, containing all the information needed to solve the collision.
+ */
+Manifold collide_convex(RigidBody* a, RigidBody* b, Timer& gjk, Timer& epa, Timer& clip);
 
 /**
  * @brief Performs a proximity query: computes the euclidian distance between two convex shapes a and b, as well as their closest points from each other.
@@ -49,7 +63,7 @@ Manifold detect_collision(RigidBody* a, RigidBody* b, double& gjk_time, double& 
  * @param b Convex shape B
  * @return The proximity info, containing the distance and the closest points.
  */
-ProximityInfo proximity_query(RigidBody* a, RigidBody* b);
+DistanceInfo ditance_convex(RigidBody* a, RigidBody* b);
 
 
 #endif /* NARROW_PHASE_H */

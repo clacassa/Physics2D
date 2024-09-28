@@ -4,7 +4,7 @@
 #include <SDL.h>
 #include <SDL_ttf.h>
 #include "control.h"
-#include "system_state.h"
+#include "world.h"
 #include "editor.h"
 #include "settings.h"
 
@@ -27,12 +27,18 @@ private:
 
     Settings m_settings;
     Control m_ctrl;
-    SystemState m_world;
+    World m_world;
     Editor m_editor;
 
-    double delta_time;
+    double frame_time;
+    double time_step;
 
-    void handle_event(SDL_Event& e, const double dt);
+    // Events
+    void parse_event(SDL_Event& event);
+    void parse_keybd_event(SDL_Event& keybd_event);
+    void parse_mouse_button_event(SDL_Event& mouse_event);
+    void parse_mouse_motion_event(SDL_Event& motion_event);
+    void parse_mouse_wheel_event(SDL_Event& wheel_event);
 
     // Demos
     void demo_collision();

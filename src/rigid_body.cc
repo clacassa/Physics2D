@@ -122,9 +122,9 @@ void RigidBody::subject_to_force(const Vector2 force) {
 }
 
 // NEEDS CORRECTION
-void RigidBody::subject_to_torque(const Vector2 force) {
-    if (omega <= 3.2) {
-        Vector2 r(3 / (double)RENDER_SCALE, 0);
+void RigidBody::subject_to_torque(const Vector2 world_point, const Vector2 force) {
+    const Vector2 r(world_point - p);
+    if (contains_point(r)) {
         torque += cross2(r, force);
     }
 }
@@ -296,27 +296,27 @@ void Ball::handle_wall_collisions() {
         collision_h.normal = {-1, 0};
         collision_h.depth = r - p.x;
         p.x = r;
-        collision_h.contact_points.push_back({0, p.y});
-        collision_h.count += 1;
+        collision_h.contact_points[0] = {0, p.y};
+        collision_h.count = 1;
     }else if (p.x + r > SCENE_WIDTH) {
         collision_h.normal = {1, 0};
         collision_h.depth = p.x + r - SCENE_WIDTH;
         p.x = SCENE_WIDTH - r;
-        collision_h.contact_points.push_back({SCENE_WIDTH, p.y});
-        collision_h.count += 1;
+        collision_h.contact_points[0] = {SCENE_WIDTH, p.y};
+        collision_h.count = 1;
     }
     if (p.y - r < 0) {
         collision_v.normal = {0, -1};
         collision_v.depth = r - p.y;
         p.y = r;
-        collision_v.contact_points.push_back({p.x, 0});
-        collision_v.count += 1;
+        collision_v.contact_points[0] = {p.x, 0};
+        collision_v.count = 1;
     }else if (p.y + r > SCENE_HEIGHT) {
         collision_v.normal = {0, 1};
         collision_v.depth = p.y + r - SCENE_HEIGHT;
         p.y = SCENE_HEIGHT - r;
-        collision_v.contact_points.push_back({p.x, SCENE_HEIGHT});
-        collision_v.count += 1;
+        collision_v.contact_points[0] = {p.x, SCENE_HEIGHT};
+        collision_v.count = 1;
     }
 
     solve_wall_collision(this, collision_h);
@@ -392,8 +392,11 @@ void Rectangle::handle_wall_collisions() {
         collision_h.normal = {-1, 0};
         for (auto v : m_vertices) {
             if (v.x <= 0) {
-                collision_h.contact_points.push_back(v);
+                collision_h.contact_points[0 + collision_h.count] = v;
                 ++collision_h.count;
+                if (collision_h.count >= 2) {
+                    break;
+                }
             }
         }
         p.x -= m_aabb.min.x;
@@ -401,8 +404,11 @@ void Rectangle::handle_wall_collisions() {
         collision_h.normal = {1, 0};
         for (auto v : m_vertices) {
             if (v.x >= SCENE_WIDTH) {
-                collision_h.contact_points.push_back(v);
+                collision_h.contact_points[0 + collision_h.count] = v;
                 ++collision_h.count;
+                if (collision_h.count >= 2) {
+                    break;
+                }
             }
         }
         p.x -= (m_aabb.max.x - SCENE_WIDTH);
@@ -411,8 +417,11 @@ void Rectangle::handle_wall_collisions() {
         collision_v.normal = {0, -1};
         for (auto v : m_vertices) {
             if (v.y <= 0) {
-                collision_v.contact_points.push_back(v);
+                collision_v.contact_points[0 + collision_v.count] = v;
                 ++collision_v.count;
+                if (collision_v.count >= 2) {
+                    break;
+                }
             }
         }
         p.y -= m_aabb.min.y;
@@ -420,8 +429,11 @@ void Rectangle::handle_wall_collisions() {
         collision_v.normal = {0, 1};
         for (auto v : m_vertices) {
             if (v.y >= SCENE_HEIGHT) {
-                collision_v.contact_points.push_back(v);
+                collision_v.contact_points[0 + collision_v.count] = v;
                 ++collision_v.count;
+                if (collision_v.count >= 2) {
+                    break;
+                }
             }
         }
         p.y -= (m_aabb.max.y - SCENE_HEIGHT);

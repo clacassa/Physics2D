@@ -37,52 +37,48 @@ double rad2deg(const double rad_angle) {
     return rad_angle * 180.0 / PI;
 }
 
-LTimer::LTimer()
-:   m_start_ticks(0), m_paused_ticks(0), m_paused(false), m_started(false) {}
-
-void LTimer::start() {
-    m_started = true;
-    m_paused = false;
-
-    m_start_ticks = SDL_GetTicks();
-    m_paused_ticks = 0;
+Timer::Timer() {
+    inv_frequency = 1.0 / SDL_GetPerformanceFrequency();
+    start = SDL_GetPerformanceCounter();
+    stop = 0;
 }
 
-void LTimer::stop() {
-    m_started = false;
-    m_paused = false;
-
-    m_start_ticks = 0;
-    m_paused_ticks = 0;
-}
-
-void LTimer::pause() {
-    if (m_started && !m_paused) {
-        m_paused = true;
-        m_paused_ticks = SDL_GetTicks() - m_start_ticks;
-        m_start_ticks = 0;
+void Timer::reset(bool halt) {
+    start = SDL_GetPerformanceCounter();
+    if (halt) {
+        stop = start;
+    }else {
+        stop = 0;
     }
 }
 
-void LTimer::unpause() {
-    if (m_started && m_paused) {
-        m_paused = false;
-        m_start_ticks = SDL_GetTicks() - m_paused_ticks;
-        m_paused_ticks = 0;
-    }
+void Timer::halt() {
+    stop = SDL_GetPerformanceCounter();
 }
 
-Uint32 LTimer::get_ticks() const {
-    Uint32 time(0);
-    if (m_started) {
-        if (m_paused) {
-            time = m_paused_ticks;
-        }else {
-            time = SDL_GetTicks() - m_start_ticks;
-        }
-    }
+uint64_t Timer::get_ticks() {
+    uint64_t ticks(SDL_GetPerformanceCounter());
+    return ticks - start;
+}
 
-    return time;
+float Timer::get_seconds() {
+    return get_elapsed();
+}
+
+float Timer::get_milliseconds() {
+    return get_elapsed(1e3);
+}
+
+float Timer::get_microseconds() {
+    return get_elapsed(1e6);
+}
+
+float Timer::get_elapsed(const double prescaler) {
+    uint64_t count(SDL_GetPerformanceCounter());
+    if (stop > 0) {
+        count = stop;
+    }
+    return (float)(inv_frequency * (count - start) * prescaler);
 }
 
 

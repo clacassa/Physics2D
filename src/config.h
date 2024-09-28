@@ -15,6 +15,10 @@
 #define DEBUG_COLLISION
 #endif
 
+constexpr unsigned min_substeps(1);
+constexpr unsigned max_substeps(50);
+constexpr double max_time_step(1.0 / 60.0);
+
 constexpr double PI(3.14159265);
 constexpr double g(9.81);
 constexpr double air_viscosity(1.48e-5);

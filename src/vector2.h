@@ -31,6 +31,8 @@ struct Vector2 {
     bool operator!=(const Vector2& v) const;
 };
 
+const Vector2 vector2_zero{0, 0};
+
 struct Vector3 {
     double x;
     double y;

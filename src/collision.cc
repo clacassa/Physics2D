@@ -1,7 +1,6 @@
 #include <iostream>
 #include <cmath>
 #include <algorithm>
-#include <chrono>
 #include <array>
 #include <climits>
 #include <cassert>
@@ -9,9 +8,6 @@
 #include "narrow_phase.h"
 #include "rigid_body.h"
 #include "config.h"
-
-using namespace std::chrono;
-
 
 void solve_collision(RigidBody* a, RigidBody* b, const Manifold& collision) {
     assert(collision.count <= 2);

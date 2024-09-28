@@ -19,8 +19,8 @@ const unsigned SCREEN_WIDTH = 1280;
 const unsigned SCREEN_HEIGHT = 720;
 #endif
 
-const unsigned SCREEN_FPS = display_mode.refresh_rate;;
-const unsigned SCREEN_TICKS_PER_FRAME = 1000 / SCREEN_FPS;
+const unsigned SCREEN_FPS = display_mode.refresh_rate;
+// const unsigned SCREEN_TICKS_PER_FRAME = 1000 / SCREEN_FPS;
 
 const double SCENE_WIDTH = 25;
 double RENDER_SCALE = (double)SCREEN_WIDTH / SCENE_WIDTH;
@@ -58,7 +58,7 @@ void init_window_and_renderer() {
     const Uint32 window_flags(SDL_WINDOW_SHOWN);
 #endif
     window = SDL_CreateWindow(title, x, y, SCREEN_WIDTH, SCREEN_HEIGHT, window_flags);
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
     int w, h;

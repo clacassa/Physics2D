@@ -12,7 +12,7 @@
 #include "render.h"
 #include "config.h"
 
-constexpr unsigned STEPS_PER_FRAME(50);
+constexpr unsigned sim_substeps(30);
 
 Application::Application(SDL_Window* window, SDL_Renderer* renderer, double w, double h,
         TTF_Font* font)
@@ -25,7 +25,8 @@ Application::Application(SDL_Window* window, SDL_Renderer* renderer, double w, d
     m_crosshair_cursor(SDL_CreateSystemCursor(SDL_SystemCursor::SDL_SYSTEM_CURSOR_CROSSHAIR)),
     m_exit_status(0),
     m_editor(m_renderer, m_font_main, SCENE_WIDTH / 100),
-    delta_time(0)
+    frame_time(0),
+    time_step(1.0 / 60.0)
 {
     // ImGui initialisation
     IMGUI_CHECKVERSION();
@@ -79,23 +80,19 @@ int Application::run() {
     Uint64 now(SDL_GetPerformanceCounter());
     Uint64 old(0);
 
-    LTimer fps_timer;
-    LTimer cap_timer;
     int frames_count(0);
-    fps_timer.start();
-
-    // demo_collision();
+    float avg_fps(SCREEN_FPS);
+    Timer fps_timer;
 
     SDL_Event e;
     while (!m_ctrl.quit) {
-        cap_timer.start();
         // Delta time calculation
         old = now;
         now = SDL_GetPerformanceCounter();
-        delta_time = (double)((now - old)*1000 / (double)SDL_GetPerformanceFrequency());
+        frame_time = (double)((now - old)*1000 / (double)SDL_GetPerformanceFrequency());
 
         while (SDL_PollEvent(&e) != 0) {
-            handle_event(e, delta_time);
+            parse_event(e);
         }
 
         ImGui_ImplSDLRenderer2_NewFrame();
@@ -103,23 +100,21 @@ int Application::run() {
         ImGui::NewFrame();
         ImGui::DockSpaceOverViewport(nullptr, ImGuiDockNodeFlags_PassthruCentralNode);
 
-        // Frame rate capping to the desired FPS
-        if (frames_count >= 1000) {
+        // Mobile average FPS counter
+        if (frames_count >= 80) {
+            avg_fps = (frames_count / fps_timer.get_seconds());
             frames_count = 0;
-            fps_timer.start();
-        }
-        float avg_fps(frames_count / (fps_timer.get_ticks() / 1000.0));
-        if (avg_fps > 2e6) {
-            avg_fps = 0;
+            fps_timer.reset();
         }
 
         // Simulation
         if (m_ctrl.simulation.running) {
-            double dt(delta_time / 1000.0);
+            double dt(time_step);
             if (m_settings.slow_motion) {
                 dt /= 10.0;
             }
-            m_world.process(dt, STEPS_PER_FRAME, m_settings, false);
+            
+            m_world.step(dt, sim_substeps, m_settings, false);
         }
 
         // Rendering
@@ -159,112 +154,22 @@ int Application::run() {
         SDL_RenderPresent(m_renderer);
 
         ++frames_count;
-        // If frame finished early
-        unsigned frame_ticks(cap_timer.get_ticks());
-        if (frame_ticks < SCREEN_TICKS_PER_FRAME) {
-            SDL_Delay(SCREEN_TICKS_PER_FRAME - frame_ticks);
-        }
     }
     
     return m_exit_status;
 }
 
-void Application::handle_event(SDL_Event& e, const double dt) {
-    ImGui_ImplSDL2_ProcessEvent(&e);
+void Application::parse_event(SDL_Event& event) {
+    ImGui_ImplSDL2_ProcessEvent(&event);
     const ImGuiIO io(ImGui::GetIO());
 
-    if (e.type == SDL_QUIT) {
+    if (event.type == SDL_QUIT) {
         m_ctrl.quit = true;
         return;
     }
 
-    const double DIV(m_editor.get_div());
-    if (e.type == SDL_KEYDOWN && !io.WantCaptureKeyboard) {
-        switch (e.key.keysym.sym) {
-            case SDLK_q:
-                m_ctrl.quit = true;
-                break;
-            case SDLK_SPACE:
-                m_ctrl.simulation.running = !m_ctrl.simulation.running;
-                if (m_ctrl.editor.active) {
-                    m_ctrl.editor.active = false;
-                }
-                break;
-            case SDLK_0:
-                m_world.destroy_all();
-                // demo_collision();
-                demo_stacking();
-                break;
-            case SDLK_1:
-                m_ctrl.editor.active = false;
-                break;
-            case SDLK_2:
-                m_ctrl.editor.active = true;
-                m_ctrl.simulation.running = false;
-                m_editor.update_grid();
-                SDL_SetCursor(m_crosshair_cursor);
-                break;
-            case SDLK_EQUALS:
-                m_settings.slow_motion = !m_settings.slow_motion;
-                break;
-            case SDLK_s:
-                if (!m_ctrl.simulation.running)
-                    m_world.process(dt / 1000, STEPS_PER_FRAME, m_settings);
-                break;
-            case SDLK_g:
-                m_world.toggle_gravity(); break;
-            case SDLK_n:
-                m_world.focus_next(); break;
-            case SDLK_p:
-                m_world.focus_prev(); break;
-            case SDLK_b: 
-                m_editor.set_body_shape(Editor::BALL); break;
-            case SDLK_r:
-                m_editor.set_body_shape(Editor::RECTANGLE); break;
-            case SDLK_RETURN:
-                m_world.add_rectangle({SCENE_WIDTH / 2.0, 0.1}, 1, 0.5); break;
-            case SDLK_UP:
-                m_world.move_focused_body({0, DIV / 5}); break;
-            case SDLK_DOWN:
-                m_world.move_focused_body({0, -DIV / 5}); break;
-            case SDLK_LEFT:
-                m_world.move_focused_body({-DIV / 5, 0}); break;
-            case SDLK_RIGHT:
-                m_world.move_focused_body({DIV / 5, 0}); break;
-            case SDLK_x:
-                m_world.rotate_focused_body(deg2rad(-5)); break;
-            case SDLK_z:
-                m_world.rotate_focused_body(deg2rad(5)); break;
-            case SDLK_h:
-                camera::translate_screen_x(-50);
-                break;
-            case SDLK_j:
-                camera::translate_screen_y(-50);
-                break;
-            case SDLK_k:
-                camera::translate_screen_y(50);
-                break;
-            case SDLK_l:
-                camera::translate_screen_x(50);
-                break;
-            case SDLK_LESS:
-                if (m_ctrl.editor.active) {
-                    if(e.key.keysym.mod == KMOD_LSHIFT) {
-
-                    }else {
-
-                    }
-                }
-                break;
-            case SDLK_F1:
-                if (m_ctrl.editor.active) {
-                    m_editor.toggle_help();
-                }
-                break;
-            case SDLK_DELETE:
-                m_world.destroy_body();
-                break;
-        }
+    if (event.type == SDL_KEYDOWN && !io.WantCaptureKeyboard) {
+        parse_keybd_event(event);
     }
 
     if (io.WantCaptureMouse) {
@@ -278,33 +183,162 @@ void Application::handle_event(SDL_Event& e, const double dt) {
         SDL_SetCursor(m_crosshair_cursor);
     }
 
-    if (e.type == SDL_MOUSEBUTTONDOWN) {
-        Vector2 mouse(m_ctrl.input.pointer);
-        if (m_ctrl.editor.active) {
-            mouse = m_editor.get_active_node();
-        }
-        if (e.button.button == SDL_BUTTON_LEFT) {
-            switch (m_editor.get_body_shape()) {
-                case Editor::BALL:
-                    if (!m_ctrl.editor.active) {
-                        m_world.add_ball(mouse, SCENE_WIDTH * 0.01);
-                    }else {
-                        m_world.add_ball(mouse, DIV, m_editor.get_body_type(),
-                                m_editor.get_enabled());
-                    }
-                    break;
-                case Editor::RECTANGLE:
-                    if (!m_ctrl.editor.active) {
-                        m_world.add_rectangle(mouse, SCENE_WIDTH * (0.025 + 0.001 * (rand() % 10)), 
-                                SCENE_WIDTH * (0.025 + 0.001 * (rand() % 10)));
-                    }else {
-                        m_world.add_rectangle(mouse, DIV * 4, DIV * 2, m_editor.get_body_type(),
-                                m_editor.get_enabled());
-                    }
-                    break;
+    if (event.type == SDL_MOUSEBUTTONDOWN) {
+        parse_mouse_button_event(event);
+    }else if (event.type == SDL_MOUSEMOTION) {
+        parse_mouse_motion_event(event);
+    }else if (event.type == SDL_MOUSEWHEEL) {
+        parse_mouse_wheel_event(event);
+    }
+}
+
+void Application::parse_keybd_event(SDL_Event& keybd_event) {
+    Vector2 mouse(m_ctrl.input.pointer);
+    if (m_ctrl.editor.active) {
+        mouse = m_editor.get_active_node();
+    }
+
+    const double DIV(m_editor.get_div());
+
+    switch (keybd_event.key.keysym.sym) {
+        case SDLK_q:
+            m_ctrl.quit = true;
+            break;
+        case SDLK_SPACE:
+            m_ctrl.simulation.running = !m_ctrl.simulation.running;
+            if (m_ctrl.editor.active) {
+                m_ctrl.editor.active = false;
             }
-            m_ctrl.input.prev_click = mouse;
-        }else if (e.button.button == SDL_BUTTON_RIGHT) {
+            break;
+        case SDLK_0:
+            m_world.destroy_all();
+            // demo_collision();
+            demo_stacking();
+            break;
+        case SDLK_1:
+            m_ctrl.editor.active = false;
+            break;
+        case SDLK_2:
+            m_ctrl.editor.active = true;
+            m_ctrl.simulation.running = false;
+            m_editor.update_grid();
+            SDL_SetCursor(m_crosshair_cursor);
+            break;
+        case SDLK_EQUALS:
+            m_settings.slow_motion = !m_settings.slow_motion;
+            break;
+        case SDLK_s:
+            if (!m_ctrl.simulation.running) {
+                m_world.step(time_step, sim_substeps, m_settings);
+            }
+            break;
+        case SDLK_g:
+            m_world.toggle_gravity();
+            break;
+        case SDLK_n:
+            m_world.focus_next();
+            break;
+        case SDLK_p:
+            m_world.focus_prev();
+            break;
+        case SDLK_b: 
+            if (!m_ctrl.editor.active) {
+                m_world.add_ball(mouse, SCENE_WIDTH * 0.01);
+            }else {
+                m_world.add_ball(mouse, DIV, m_editor.get_body_type(), m_editor.get_enabled());
+            }
+            break;
+        case SDLK_r:
+            if (!m_ctrl.editor.active) {
+                m_world.add_rectangle(mouse, SCENE_WIDTH * (0.025 + 0.001 * (rand() % 10)), 
+                        SCENE_WIDTH * (0.025 + 0.001 * (rand() % 10)));
+            }else {
+                m_world.add_rectangle(mouse, DIV * 4, DIV * 2, m_editor.get_body_type(),
+                        m_editor.get_enabled());
+            }
+            break;
+        case SDLK_UP:
+            {
+                RigidBody* body(m_world.get_focused_body());
+                body->move({0, DIV / 5});
+            }
+            break;
+        case SDLK_DOWN:
+            {
+                RigidBody* body(m_world.get_focused_body());
+                body->move({0, -DIV / 5});
+            }
+            break;
+        case SDLK_LEFT:
+            {
+                RigidBody* body(m_world.get_focused_body());
+                body->move({-DIV / 5, 0});
+            }
+            break;
+        case SDLK_RIGHT:
+            {
+                RigidBody* body(m_world.get_focused_body());
+                body->move({DIV / 5, 0});
+            }
+            break;
+        case SDLK_x:
+            {
+                RigidBody* body(m_world.get_focused_body());
+                body->rotate(deg2rad(-5));
+            }
+            break;
+        case SDLK_z:
+            {
+                RigidBody* body(m_world.get_focused_body());
+                body->rotate(deg2rad(5));
+            }
+            break;
+        case SDLK_h:
+            camera::translate_screen_x(-50);
+            break;
+        case SDLK_j:
+            camera::translate_screen_y(-50);
+            break;
+        case SDLK_k:
+            camera::translate_screen_y(50);
+            break;
+        case SDLK_l:
+            camera::translate_screen_x(50);
+            break;
+        case SDLK_LESS:
+            if (m_ctrl.editor.active) {
+                if(keybd_event.key.keysym.mod == KMOD_LSHIFT) {
+
+                }else {
+
+                }
+            }
+            break;
+        case SDLK_F1:
+            if (m_ctrl.editor.active) {
+                m_editor.toggle_help();
+            }
+            break;
+        case SDLK_DELETE:
+            {
+                RigidBody* body(m_world.get_focused_body());
+                m_world.destroy_body(body);
+            }
+            break;
+    }
+}
+
+void Application::parse_mouse_button_event(SDL_Event& mouse_event) {
+    Vector2 mouse(m_ctrl.input.pointer);
+    if (m_ctrl.editor.active) {
+        mouse = m_editor.get_active_node();
+    }
+    
+    switch (mouse_event.button.button) {
+        case SDL_BUTTON_LEFT:
+            m_world.focus_on_position(mouse);
+            break;
+        case SDL_BUTTON_RIGHT:
             if (!m_ctrl.editor.adding_spring) {
                 m_ctrl.editor.adding_spring = true;
             }else {
@@ -312,51 +346,57 @@ void Application::handle_event(SDL_Event& e, const double dt) {
                         m_editor.get_stiffness());
                 m_ctrl.editor.adding_spring = false;
             }
-            m_ctrl.input.prev_click = mouse;
-        }else if (e.button.button == SDL_BUTTON_MIDDLE) {
-            m_world.focus_on_position(mouse);
-        }
-    }else if (e.type == SDL_MOUSEMOTION) {
-        int x, y;
-        const Uint32 mouse_state(SDL_GetMouseState(&x, &y));
-        Vector2 world_p(camera::screen_to_world(x, y));
-        if (m_ctrl.input.pointer != world_p) {
-            m_ctrl.input.pointer = world_p;
-            m_editor.track_point(m_ctrl.input.pointer);
-        }
-        if (mouse_state & SDL_BUTTON_RMASK) {
-            m_ctrl.editor.adding_spring = false;
-            camera::translate_world(m_ctrl.input.prev_click - m_ctrl.input.pointer);
-            if (m_ctrl.editor.active) {
-                m_editor.update_grid();
-            }
-        }
-    }else if (e.type == SDL_MOUSEWHEEL) {
-        if (e.wheel.y > 0) {
-            camera::zoom_in();
-        }else {
-            if (RENDER_SCALE > 0.1) {
-                camera::zoom_out();
-            }
-        }
+            break;
+    }
+    
+    m_ctrl.input.prev_click = mouse;
+}
+
+void Application::parse_mouse_motion_event(SDL_Event& motion_event) {
+    int x, y;
+    const Uint32 mouse_state(SDL_GetMouseState(&x, &y));
+    Vector2 world_p(camera::screen_to_world(x, y));
+
+    if (m_ctrl.input.pointer != world_p) {
+        m_ctrl.input.pointer = world_p;
+        m_editor.track_point(m_ctrl.input.pointer);
+    }
+
+    if (mouse_state & SDL_BUTTON_RMASK) {
+        m_ctrl.editor.adding_spring = false;
+        camera::translate_world(m_ctrl.input.prev_click - m_ctrl.input.pointer);
 
         if (m_ctrl.editor.active) {
             m_editor.update_grid();
         }
-        
-        int x, y;
-        SDL_GetMouseState(&x, &y);
-        Vector2 offset(camera::world_to_screen(m_ctrl.input.pointer) - Vector2(x, y));
-        camera::translate_screen_x(offset.x);
-        camera::translate_screen_y(-offset.y);
     }
 }
 
+void Application::parse_mouse_wheel_event(SDL_Event& wheel_event) {
+    if (wheel_event.wheel.y > 0) {
+        camera::zoom_in();
+    }else {
+        if (RENDER_SCALE > 0.1) {
+            camera::zoom_out();
+        }
+    }
+
+    if (m_ctrl.editor.active) {
+        m_editor.update_grid();
+    }
+    
+    int x, y;
+    SDL_GetMouseState(&x, &y);
+    Vector2 offset(camera::world_to_screen(m_ctrl.input.pointer) - Vector2(x, y));
+    camera::translate_screen_x(offset.x);
+    camera::translate_screen_y(-offset.y);
+}
+
 void Application::demo_collision() {
-    m_world.add_rectangle({-0.5, SCENE_HEIGHT * 0.5}, 0.25, 0.25, DYNAMIC, true, {3, 0});
-    for (unsigned i(0); i < 250; ++i) {
-        m_world.add_ball({SCENE_WIDTH * 0.25 + 0.001 * (rand() % 250),
-                        SCENE_HEIGHT * 0.5 - 0.0625 + 0.001 * (rand() % 125)}, 0.01);
+    m_world.add_rectangle({SCENE_WIDTH * 0.1, SCENE_HEIGHT * 0.5}, 0.25, 0.25, DYNAMIC, true, {3, 0});
+    for (unsigned i(0); i < 400; ++i) {
+        m_world.add_ball({SCENE_WIDTH * 0.25 + 0.001 * (rand() % 500),
+                        SCENE_HEIGHT * 0.5 - 0.125 + 0.001 * (rand() % 250)}, 0.01);
     }
 }
 
@@ -367,6 +407,16 @@ void Application::demo_stacking() {
             m_world.add_rectangle({SCENE_WIDTH * 0.5 - 0.5 * (i % 2 == 0 ? i : -i - 1), 1.5 + j}, 0.5, 0.5);
         }
     }
+    // const double center(SCENE_WIDTH * 0.5);
+    // const double bside(0.05);
+    // m_world.disable_walls();
+    // m_world.add_rectangle({center, 0.5}, 5, 0.25, BodyType::STATIC);
+    // for (unsigned i(0); i < 100; ++i) {
+    //     for (int j(0); j < 10; ++j) {
+    //         const Vector2 bpos(center - (5 - j) * bside + bside * 0.5, 0.75 + bside * i);
+    //         m_world.add_rectangle(bpos, bside, bside);
+    //     }
+    // }
 }
 
 void Application::show_menubar() {
@@ -384,7 +434,7 @@ void Application::show_main_overlay(const float avg_fps) {
             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
             ImGuiWindowFlags_NoInputs);
 
-    // Top left corner, application metrics
+    // Top left corner
     const float pad(10.0);
     const ImGuiViewport* viewport(ImGui::GetMainViewport());
     ImVec2 work_pos(viewport->WorkPos);
@@ -394,10 +444,10 @@ void Application::show_main_overlay(const float avg_fps) {
     flags |= ImGuiWindowFlags_NoMove;
     bool p_open(true);
     ImGui::Begin("Main overlay", &p_open, flags);
-    ImGui::Text("Average FPS (cap %.1u) : %.1f", SCREEN_FPS, floor(avg_fps));
-    ImGui::Text("Delta time : %.1f ms", delta_time);
-    ImGui::Text("Freq : %.1f Hz", STEPS_PER_FRAME * avg_fps);
-    ImGui::Text("Steps : %.1u", STEPS_PER_FRAME);
+    ImGui::Text("Average FPS (cap %.1u) : %.1d", SCREEN_FPS, int(avg_fps));
+    ImGui::Text("Delta time : %.1f ms", frame_time);
+    ImGui::Text("Freq : %.1f Hz", sim_substeps * avg_fps);
+    ImGui::Text("Steps : %.1u", sim_substeps);
     ImVec4 color((!m_ctrl.simulation.running), (m_ctrl.simulation.running), 0.3, 1);
     ImGui::TextColored(color, (m_ctrl.simulation.running ? "RUNNING" : "PAUSED"));
     const float offset(ImGui::GetWindowHeight() + pad);
@@ -410,8 +460,8 @@ void Application::show_main_overlay(const float avg_fps) {
         ImGui::SetNextWindowPos(window_pos);
         ImGui::SetNextWindowBgAlpha(0.5);
         if (ImGui::Begin("Simu overlay", &p_show, flags)) {
-            ImGui::SeparatorText("Simulation perf. metrics");
-            ImGui::Text("%s", m_world.dump_metrics().c_str());
+            ImGui::SeparatorText("Simulation profile");
+            ImGui::Text("%s", m_world.dump_profile().c_str());
             ImGui::SeparatorText("General infos");
             ImGui::Text("Bodies : %.1u", m_world.get_body_count());
             ImGui::Text("System energy : %.1f J", m_world.total_energy());

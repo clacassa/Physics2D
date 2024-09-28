@@ -4,6 +4,7 @@
 #include <SDL_render.h>
 #include <SDL_image.h>
 #include <SDL_ttf.h>
+#include <SDL_timer.h>
 #include <string>
 #include <vector>
 
@@ -19,27 +20,22 @@ double deg2rad(const double deg_angle);
 double rad2deg(const double rad_angle);
 
 
-class LTimer {
+class Timer {
 public:
-    LTimer();
-    virtual ~LTimer() {}
+    Timer();
 
-    void start();
-    void stop();
-    void pause();
-    void unpause();
-
-    Uint32 get_ticks() const;
-
-    inline bool is_started() const { return m_started; }
-    inline bool is_paused() const { return m_paused; }
-
+    void reset(bool halt = false);
+    void halt();
+    uint64_t get_ticks();
+    float get_seconds();
+    float get_milliseconds();
+    float get_microseconds();
 private:
-    Uint32 m_start_ticks;
-    Uint32 m_paused_ticks;
+    double inv_frequency;
+    uint64_t start;
+    uint64_t stop;
 
-    bool m_paused;
-    bool m_started;
+    float get_elapsed(const double prescaler = 1.0);
 };
 
 

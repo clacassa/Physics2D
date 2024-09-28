@@ -1,0 +1,423 @@
+#include <iostream>
+#include "SDL_render.h"
+#include "world.h"
+#include "rigid_body.h"
+#include "broad_phase.h"
+#include "narrow_phase.h"
+#include "collision.h"
+#include "utils.h"
+#include "render.h"
+#include "settings.h"
+#include "config.h"
+
+World::World()
+:   gravity_enabled(true),
+    walls_enabled(true),
+    air_friction_enabled(false),
+    body_count(0),
+    focus(0), 
+    m_force_fields({Vector2{0.0, -g * gravity_enabled}, Vector2{0.0, 0.0}, Vector2{0.0, 0.0}})
+{
+    //this->add_ball({SCENE_WIDTH / 2.0, SCENE_HEIGHT / 2.0}, 2.0, SCENE_WIDTH / 100, DYNAMIC, true, {5.0, 0.0});
+    body_count = m_bodies.size();
+    m_profile.reset();
+}
+
+World::~World() {
+    destroy_all();
+}
+
+void World::step(double dt, int substeps, Settings& settings, bool perft) {
+    if (perft && body_count < 250) {
+        add_ball({SCENE_WIDTH/2.0, SCENE_HEIGHT/2.0}, 0.1, DYNAMIC, true, {1, 0});
+    }
+
+    m_profile.reset();
+    Timer step_timer;
+    Timer broad_timer;
+    Timer pairs_timer;
+    Timer AABB_timer;
+    Timer response_timer;
+    Timer walls_timer;
+
+#ifdef SWEEP_AND_PRUNE
+    pairs_timer.reset();
+    m_sap.choose_axis(m_bodies);
+    const auto pairs(m_sap.process(m_bodies));
+    m_profile.pairs = pairs_timer.get_microseconds();
+    m_profile.broad_phase = m_profile.pairs;
+#endif
+
+    for (auto& body : m_bodies) {
+        body->reset_color();
+    }
+
+    destroy_contacts();
+    destroy_proxys();
+
+    for (int i(0); i < substeps; ++i) {
+        apply_forces();
+        for (auto body : m_bodies) {
+            if (body->is_enabled()) {
+                Timer ode_timer;
+                body->step(dt / substeps);
+                body->update_bounding_box();
+                m_profile.ode += ode_timer.get_microseconds();
+            }
+        }
+        
+        for (auto& pair : pairs) {
+            RigidBody* a(pair[0]);
+            RigidBody* b(pair[1]);
+
+            AABB_timer.reset();
+            bool broad_overlap(AABB_overlap(a->get_AABB(), b->get_AABB()));
+            m_profile.AABBs += AABB_timer.get_microseconds();
+            m_profile.broad_phase += AABB_timer.get_microseconds();
+
+            if (broad_overlap) {
+
+                Timer narrow_phase_timer;
+                Manifold collision(collide(a, b));
+                m_profile.narrow_phase += narrow_phase_timer.get_microseconds();
+
+                if (collision.intersecting) {
+                    if (i < 2) {
+                        m_contacts.push_back(new Manifold(collision));
+                    }
+
+                    response_timer.reset();
+                    if (!a->is_dynamic()) {
+                        b->move(collision.normal * collision.depth);
+                    }else if (!b->is_dynamic()) {
+                        a->move(-collision.normal * collision.depth);
+                    }else {
+                        a->move(-collision.normal * collision.depth * 0.5);
+                        b->move(collision.normal * collision.depth * 0.5);
+                    }
+                    solve_collision(a, b, collision);
+                    m_profile.response_phase += response_timer.get_microseconds();
+
+                    if (settings.highlight_collisions) {
+                        a->colorize({0, 128, 255, 255});
+                        b->colorize({0, 255, 128, 255});
+                    }
+                }else if (i > substeps - 2) {
+                    m_proxys.push_back(new DistanceInfo(ditance_convex(a, b)));
+                }
+            }            
+        }
+
+        walls_timer.reset();
+        if (walls_enabled) {
+            for (auto body : m_bodies) {
+                if (!body->is_static()) {
+                    body->handle_wall_collisions();
+                }
+            }
+            m_profile.walls += walls_timer.get_microseconds();
+        }
+    }
+
+    // m_profile.average((double)steps);
+    m_profile.step = step_timer.get_microseconds();
+}
+
+void World::render(SDL_Renderer* renderer, bool running, Settings& settings) {
+    // Draw world boundaries
+    if (walls_enabled) {
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 127);
+        render_line(renderer, {0, SCENE_HEIGHT}, {0, 0});
+        render_line(renderer, {0, 0}, {SCENE_WIDTH, 0});
+        render_line(renderer, {SCENE_WIDTH, 0}, {SCENE_WIDTH, SCENE_HEIGHT});
+        render_line(renderer, {SCENE_WIDTH, SCENE_HEIGHT}, {0, SCENE_HEIGHT});
+    }
+
+    if (body_count > 0) {
+        m_bodies[focus]->colorize(focus_color);
+        if (settings.draw_body_trajectory) {
+            m_bodies[focus]->draw_trace(renderer, running);
+        }
+    }
+
+    for (auto& body : m_bodies) {
+        body->draw(renderer);
+    }
+
+    if (settings.draw_bounding_boxes) {
+        SDL_SetRenderDrawColor(renderer, 102, 102, 255, 255);
+        for (auto body : m_bodies) {
+            body->draw_bounding_box(renderer);
+        }
+    }
+
+    if (settings.draw_contact_points) {
+        SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+        for (auto contact : m_contacts) {
+            for (auto point : contact->contact_points) {
+                render_fill_circle_fast(renderer, point, 3.5 / RENDER_SCALE);
+            }
+        }
+    }
+
+    if (settings.draw_collision_normal) {
+        SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
+        for (auto contact : m_contacts) {
+            for (auto point : contact->contact_points) {
+                render_line(renderer, point, point + contact->normal / RENDER_SCALE * 20);
+            }
+        }
+    }
+
+    if (settings.draw_distance_proxys) {
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        for (auto prox : m_proxys) {
+            render_line(renderer, prox->points.closest_a, prox->points.closest_b);
+        }
+    }
+
+    for (auto spring : m_springs) {
+        spring->draw(renderer);
+    }
+}
+
+void World::add_ball(Vector2 pos, double radius, BodyType type, bool enabled,
+        Vector2 vel) {
+    const double depth(radius);
+    const double volume(PI * radius * radius * depth);
+    m_bodies.push_back(new Ball(vel, pos, steel_density * volume, radius, type, enabled));
+    ++body_count;
+
+    m_sap.update_list(m_bodies);
+}
+
+void World::add_rectangle(Vector2 p, double w, double h, BodyType type, bool enabled, Vector2 v) {
+    const Vertices vertices{
+        {p.x - w / 2, p.y + h / 2},
+        {p.x - w / 2, p.y - h / 2},
+        {p.x + w / 2, p.y - h / 2},
+        {p.x + w / 2, p.y + h / 2}
+    };
+    m_bodies.push_back(new Rectangle(v, p, steel_density * w * h * h, w, h, vertices, type, enabled));
+    ++body_count;
+
+    m_sap.update_list(m_bodies);
+}
+
+void World::add_spring(Vector2 p1, Vector2 p2, Spring::DampingType damping, float stiffness) {
+    RigidBody* a(nullptr);
+    RigidBody* b(nullptr);
+    for (auto body : m_bodies) {
+        if (body->contains_point(p1)) {
+            a = body;
+            continue;
+        }
+        if (body->contains_point(p2)) {
+            b = body;
+            continue;
+        }
+        if (a && b) {
+            break;
+        }
+    }
+    if (a && b) {
+        if ((a->is_dynamic() || b->is_dynamic()) && (a->is_enabled() || b->is_enabled())) {
+            const double rest_length((a->get_p() - b->get_p()).norm());
+            m_springs.push_back(new Spring(a, b, rest_length, stiffness, damping));
+        }
+    }
+}
+
+void World::destroy_body(RigidBody* body) {
+    if (!body || body_count == 0) {
+        return;
+    }
+
+    int idx(-1);
+    for (unsigned i(0); i < body_count; ++i) {
+        if (body == m_bodies[i]) {
+            idx = i;
+            break;
+        }
+    }
+
+    if (idx >= 0) {
+        delete body;
+        m_bodies.erase(m_bodies.begin() + idx);
+        --body_count;
+        if (idx <= focus && focus > 0) {
+            --focus;
+        }
+        m_sap.update_list(m_bodies);
+    }
+}
+
+void World::destroy_all() {
+    for (auto body : m_bodies) {
+        delete body;
+    }
+    m_bodies.clear();
+    body_count = 0;
+    focus = 0;
+
+    destroy_contacts();
+    destroy_proxys();
+
+    for (auto spring : m_springs) {
+        delete spring;
+    }
+    m_springs.clear();
+
+    m_sap.update_list(m_bodies);
+}
+
+std::string World::dump_profile() const {
+    std::string perf;
+    perf += ("Time per step : " + truncate_to_string(m_profile.step) + " us\n")
+          + ("ODE solve time : " + truncate_to_string(m_profile.ode) + " us\n")
+          + ("Collisions time : " + truncate_to_string(m_profile.collisions) + " us\n")
+          + ("  > Broad phase : " + truncate_to_string(m_profile.broad_phase) + " us\n")
+          + ("    > Pairs : " + truncate_to_string(m_profile.pairs) + " us\n")
+          + ("    > AABBs : " + truncate_to_string(m_profile.AABBs) + " us\n")
+          + ("  > Narrow phase : " + truncate_to_string(m_profile.narrow_phase) + " us\n")
+#ifdef GJK_EPA
+          + ("    > GJK : " + truncate_to_string(m_profile.gjk_collide) + " us\n")
+          + ("    > EPA : " + truncate_to_string(m_profile.epa) + " us\n")
+#endif
+          + ("    > Clip : " + truncate_to_string(m_profile.clip) + " us\n")
+          + ("  > Response phase : " + truncate_to_string(m_profile.response_phase) + " us\n")
+          + ("Walls : " + truncate_to_string(m_profile.walls) + " us\n");
+
+    return perf;
+}
+
+std::string World::dump_selected_body() const {
+    std::string body_data;
+    if (body_count > 0) {
+        body_data = m_bodies[focus]->dump(gravity_enabled);
+#ifdef DEBUG
+        body_data += "\nFriction: " + m_bodies[focus]->get_friction();
+#endif
+    }
+    return body_data;
+}
+
+double World::total_energy() const {
+    double energy(0);
+    for (auto body : m_bodies) {
+        energy += body->energy(gravity_enabled);
+    }
+    for (auto spring : m_springs) {
+        energy += spring->energy();
+    }
+    return energy;
+}
+
+void World::focus_next() {
+    if (body_count == 0) {
+        return;
+    }
+
+    m_bodies[focus]->reset_color();
+    ++focus;
+    if (focus >= body_count) {
+        focus = 0;
+    }
+    m_bodies[focus]->colorize(focus_color);
+}
+
+void World::focus_prev() {
+    if (body_count == 0) {
+        return;
+    }
+
+    m_bodies[focus]->reset_color();
+    if (focus == 0) {
+        focus = body_count - 1;
+    }else {
+        --focus;
+    }
+    m_bodies[focus]->colorize(focus_color);
+}
+
+void World::focus_on_position(Vector2 p) {
+    if (body_count > 0) {
+        m_bodies[focus]->reset_color();
+    }
+    for (size_t i(0); i < body_count; ++i) {
+        if (m_bodies[i]->contains_point(p)) {
+            focus = i;
+            m_bodies[i]->colorize(focus_color);
+            break;
+        }
+    }
+}
+
+RigidBody* World::get_focused_body() const {
+    if (body_count > 0) {
+        return m_bodies[focus];
+    }
+    return nullptr;
+}
+
+void World::apply_forces() {
+    for (auto body : m_bodies) {
+        body->reset_forces();
+        if (gravity_enabled && body->is_enabled() && body->is_dynamic()) {
+            body->subject_to_force({0.0, -body->get_mass() * g});
+        }
+    }
+    for (auto spring : m_springs) {
+        spring->apply();
+    }
+}
+
+Manifold World::collide(RigidBody* body_a, RigidBody* body_b) {
+    Manifold result;
+
+    const bool body_a_polygon(body_a->has_vertices());
+    const bool body_b_polygon(body_b->has_vertices());
+
+    if (body_a_polygon || body_b_polygon) {
+        Timer gjk, epa, clip;
+
+        result = collide_convex(body_a, body_b, gjk, epa, clip);
+
+        m_profile.gjk_collide += gjk.get_microseconds();
+        m_profile.epa += epa.get_microseconds();
+        m_profile.clip += clip.get_microseconds();
+    }else {
+        result = collide_circle_circle(body_a, body_b);
+    }
+
+    return result;
+}
+
+void World::destroy_contacts() {
+    for (auto contact : m_contacts) {
+        delete contact;
+    }
+    m_contacts.clear();
+}
+
+void World::destroy_proxys() {
+    for (auto prox : m_proxys) {
+        delete prox;
+    }
+    m_proxys.clear();
+}
+
+void World::Profile::reset() {
+    this->step = 0;
+    this->ode = 0;
+    this->collisions = 0;
+    this->broad_phase = 0;
+    this->pairs = 0;
+    this->AABBs = 0;
+    this->narrow_phase = 0;
+    this->gjk_collide = 0;
+    this->epa = 0;
+    this->clip = 0;
+    this->response_phase = 0;
+    this->walls = 0;
+}

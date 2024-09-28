@@ -31,7 +31,7 @@ public:
 
     void step(double dt);
     void subject_to_force(const Vector2 force);
-    void subject_to_torque(const Vector2 force);
+    void subject_to_torque(const Vector2 world_point, const Vector2 force);
     void reset_forces();
     void move(const Vector2 delta_p, bool update_AABB = true);
     void rotate(const double d_theta, bool update_AABB = true);

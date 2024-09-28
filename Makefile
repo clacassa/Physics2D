@@ -65,7 +65,7 @@ run: all
 
 .PHONY: clean
 clean:
-	@rm -f $(OUT) $(OFILES)
+	@rm -f $(OUT) $(OFILES) $(OFILES:.o=.d)
 	
 .PHONY: remake
 remake: clean all

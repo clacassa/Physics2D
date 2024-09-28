@@ -12,19 +12,17 @@ Editor::Editor(SDL_Renderer* renderer, TTF_Font* font, double division)
     m_font(font),
     m_title(m_renderer, text_color, m_font),
     m_banner(m_renderer, 10), // centered layout
-    body_shape(BALL),
     body_type(DYNAMIC),
-    enabled_body(true),
-    show_help_banner(true),
-    spring_very_stiff(false),
-    current_stiffness(spring_stiffness_default),
-    damping(Spring::UNDERDAMPED)
+    body_enabled(true),
+    spring_incompressible(false),
+    spring_stiffness(spring_stiffness_default),
+    spring_damping(Spring::UNDERDAMPED),
+    show_help_banner(true)
 {
     update_grid();
 
     m_banner.add_texture(text_color, m_font);
     m_banner.add_texture(text_color, m_font);
-    update_help();
 }
 
 void Editor::render() {
@@ -246,77 +244,28 @@ void Editor::show_controls(bool* editor_active) {
         return;
     }
     if (ImGui::Begin("Editor controls", &show_help_banner, window_flags)) {
-        int new_body_shape(body_shape);
-        ImGui::SeparatorText("Rigid body");
-        ImGui::RadioButton("Ball (B)", &new_body_shape, 0);
-        ImGui::SameLine();
-        ImGui::RadioButton("Rectangle (R)", &new_body_shape, 1);
-        ImGui::SameLine();
-        ImGui::Text("Shape");
-        body_shape = static_cast<BodyShape>(new_body_shape);
-
         static int new_body_type(DYNAMIC);
         const char* items_type("Static\0Kinematic\0Dynamic\0");
         ImGui::Combo("Type", &new_body_type, items_type);
         body_type = static_cast<BodyType>(new_body_type);
 
-        ImGui::Checkbox("enabled", &enabled_body);
+        ImGui::Checkbox("enabled", &body_enabled);
 
         ImGui::SeparatorText("Spring type");
-        ImGui::Checkbox("Infinitely stiff", &spring_very_stiff);
-        static float k(spring_very_stiff ? spring_stiffness_infinite : spring_stiffness_default);
-        ImGui::BeginDisabled(spring_very_stiff);
-        if (spring_very_stiff) {
+        ImGui::Checkbox("Infinitely stiff", &spring_incompressible);
+        static float k(spring_stiffness_default);
+        ImGui::BeginDisabled(spring_incompressible);
+        if (spring_incompressible) {
             k = spring_stiffness_infinite;
         }
         ImGui::InputFloat("Stiffness", &k);
         ImGui::EndDisabled();
-        current_stiffness = k;
+        spring_stiffness = k;
 
         static int new_damping_type(0);
         const char* items_damping("Undamped\0Underdamped\0Critically damped\0Overdamped\0");
         ImGui::Combo("Damping", &new_damping_type, items_damping);
-        damping = static_cast<Spring::DampingType>(new_damping_type);
+        spring_damping = static_cast<Spring::DampingType>(new_damping_type);
     }
     ImGui::End();
-}
-
-void Editor::update_help() {
-    help = "<: Smaller grid       >: Larger grid       LMB: Add a body       ";
-    help += "B: Ball       ";
-    if (body_shape == BALL) {
-        help.replace(help.length() - 6, 1, "*");
-    }
-    help += "R: Rectangle       ";
-    if (body_shape == RECTANGLE) {
-        help.replace(help.length() - 6, 1, "*");
-    }
-    help += "9: Static body [  ]     ";
-    if (body_type == STATIC) {
-        help.replace(help.length() - 9, 4, "[v/]");
-    }
-    help += "0: Enabled body [  ]     ";
-    if (enabled_body) {
-        help.replace(help.length() - 9, 4, "[v/]");
-    }
-    help += "\n\nRMB: Add a spring       4: Elastic [  ]     ";
-    if (!spring_very_stiff) {
-        help.replace(help.length() - 9, 4, "[v/]");
-    }
-    help += "Damping options:  5: Undamped       ";
-    if (damping == Spring::UNDAMPED) {
-        help.replace(help.length() - 6, 1, "*");
-    }
-    help += "6: Underdamped       ";
-    if (damping == Spring::UNDERDAMPED) {
-        help.replace(help.length() - 6, 1, "*");
-    }
-    help += "7: Critically damped       ";
-    if (damping == Spring::CRIT_DAMPED) {
-        help.replace(help.length() - 6, 1, "*");
-    }
-    help += "8: Overdamped       ";
-    if (damping == Spring::OVERDAMPED) {
-        help.replace(help.length() - 6, 1, "*");
-    }
 }
