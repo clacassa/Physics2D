@@ -187,7 +187,7 @@ void RigidBody::draw_trace(SDL_Renderer* renderer, bool update_trace) {
             for (size_t i(0); i < track.size() - 1; ++i) {
                 int alpha(255.0 / track.size() * i);
                 SDL_SetRenderDrawColor(renderer, 255, 0, 0, alpha);
-                // render_filled_circle(renderer, point.x, point.y, 1 / (double)RENDER_SCALE);
+                // render_circle_fill(renderer, point.x, point.y, 1 / (double)RENDER_SCALE);
                 render_line(renderer, track[i], track[i + 1]);
             }
         }
@@ -262,7 +262,7 @@ void Ball::draw(SDL_Renderer* renderer) {
 
     if (!is_static() && enabled) {
         SDL_SetRenderDrawColor(renderer, 0.5 * color.r, 0.5 * color.g, 0.5 * color.b, 0.5*color.a);
-        render_fill_circle_fast(renderer, p, r);
+        render_circle_fill_fast(renderer, p, r);
         SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
         render_circle(renderer, p, r);
         render_line(renderer, p, {p.x + r * cos(theta), p.y + r * sin(theta)});
@@ -283,8 +283,8 @@ void Ball::draw(SDL_Renderer* renderer) {
     }
 #ifdef DEBUG
     //SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-    //render_fill_circle_fast(renderer, m_debug1, 3 / RENDER_SCALE);
-    //render_fill_circle_fast(renderer, m_debug2, 3 / RENDER_SCALE);
+    //render_circle_fill_fast(renderer, m_debug1, 3 / RENDER_SCALE);
+    //render_circle_fill_fast(renderer, m_debug2, 3 / RENDER_SCALE);
 #endif
 }
 

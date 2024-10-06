@@ -16,21 +16,16 @@ IMGUI_SRC = $(wildcard $(IMGUI_DIR)imgui*.cpp)
 #IMGUI_OBJ = $(addsuffix .o, $(basename $(notdir $(IMGUI_SRC))))
 IMGUI_OBJ = $(patsubst $(IMGUI_DIR)%.cpp, $(OBJ_DIR)%.o, $(IMGUI_SRC))
 
-# Tracy
-TRACY_DIR = tracy-0.11.1/public/
-TRACY_SRC = $(TRACY_DIR)TracyClient.cpp
-TRACY_OBJ = $(OBJ_DIR)TracyClient.o
-
 ifeq ($(UNAME_S), Linux)
 	PLATFORM_MSG = "Linux"
 	INCLUDE += `pkg-config --cflags sdl2`
-	LDLIBS = `pkg-config --libs sdl2` -lSDL2_image -lSDL2_ttf
+	LDLIBS = `pkg-config --libs sdl2`
 endif
 
 ifeq ($(OS), Windows_NT)
 	PLATFORM_MSG = "MinGW"
-	INCLUDE += `pkg-config --cflags sdl2_ttf sdl2_image`
-	LDLIBS = `pkg-config --libs sdl2 sdl2_ttf sdl2_image` -mconsole
+	INCLUDE += `pkg-config --cflags sdl2`
+	LDLIBS = `pkg-config --libs sdl2` -mconsole
 endif
 
 #------------------------
@@ -63,10 +58,16 @@ debug: CXXFLAGS += -DDEBUG -O0
 debug: CONFIG_MSG = "Configuration: Debug"
 debug: all
 
+# Tracy profiler
 .PHONY: tracy
+tracy: TRACY_DIR = tracy-0.11.1/public/
+tracy: TRACY_SRC = $(TRACY_DIR)TracyClient.cpp
+tracy: TRACY_OBJ = $(OBJ_DIR)TracyClient.o
 tracy: CXXFLAGS += -DTRACY_ENABLE
 tracy: INCLUDE += -I$(TRACY_DIR)tracy/
+ifeq ($(OS), Windows_NT)
 tracy: LDLIBS += -lws2_32 -lwsock32 -ldbghelp
+endif
 tracy: CONFIG_MSG += " (Tracy profiling enabled)"
 tracy: all
 

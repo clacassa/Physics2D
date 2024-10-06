@@ -18,7 +18,7 @@ void render_line(SDL_Renderer* renderer, Vector2 p1, Vector2 p2) {
     SDL_RenderDrawLineF(renderer, px1.x, px1.y, px2.x, px2.y);
 }
 
-void render_filled_circle(SDL_Renderer *renderer, Vector2 center, double radius) {
+void render_circle_fill(SDL_Renderer *renderer, Vector2 center, double radius) {
     radius *= RENDER_SCALE;
     Vector2 center_px(camera::world_to_screen(center));
     radius = (int)radius;
@@ -34,7 +34,7 @@ void render_filled_circle(SDL_Renderer *renderer, Vector2 center, double radius)
 }
 
 
-void render_fill_circle_fast(SDL_Renderer * renderer, Vector2 center, double radius_) {
+void render_circle_fill_fast(SDL_Renderer * renderer, Vector2 center, double radius_) {
     Vector2 center_px(camera::world_to_screen(center));
     radius_ *= RENDER_SCALE;
     int x(center_px.x);

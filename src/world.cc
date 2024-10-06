@@ -154,7 +154,7 @@ void World::render(SDL_Renderer* renderer, bool running, Settings& settings) {
         SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
         for (auto contact : m_contacts) {
             for (auto point : contact->contact_points) {
-                render_fill_circle_fast(renderer, point, 3.5 / RENDER_SCALE);
+                render_circle_fill_fast(renderer, point, 3.5 / RENDER_SCALE);
             }
         }
     }

@@ -153,7 +153,7 @@ void Editor::render_grid() {
     }
     // Highlight the active node
     SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 127);
-    render_filled_circle(m_renderer, active_node, 3 / RENDER_SCALE);
+    render_circle_fill(m_renderer, active_node, 3 / RENDER_SCALE);
     // Render the median axis with graduations
     SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 127);
     const double x_axis_pos(0);

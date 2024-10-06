@@ -162,7 +162,7 @@ void Spring::draw_coil(SDL_Renderer* renderer, Vector2 start, Vector2 direction,
 //     for (auto point : track) {
 //         int alpha(255 / track.size() * i);
 //         SDL_SetRenderDrawColor(renderer, 255, 0, 0, alpha);
-//         render_filled_circle(renderer, point.x, point.y, 1 / (double)RENDER_SCALE);
+//         render_circle_fill(renderer, point.x, point.y, 1 / (double)RENDER_SCALE);
 //         ++i;
 //     }
 // }
