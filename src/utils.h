@@ -2,8 +2,6 @@
 #define UTILS_H
 
 #include <SDL_render.h>
-#include <SDL_image.h>
-#include <SDL_ttf.h>
 #include <SDL_timer.h>
 #include <string>
 #include <vector>
@@ -37,84 +35,6 @@ private:
 
     float get_elapsed(const double prescaler = 1.0);
 };
-
-
-class LTexture {
-public:
-    LTexture(SDL_Renderer* renderer);
-    LTexture(SDL_Renderer* renderer, SDL_Color color, TTF_Font* font);
-    virtual ~LTexture();
-
-    bool load_from_file(std::string filepath);
-    bool load_from_rendered_text(std::string text, SDL_Color color, TTF_Font* font);
-    bool load_from_rendered_text(std::string text);
-    void free();
-    void set_color(Uint8 r, Uint8 g, Uint8 b) {}
-    void set_blend_mode(SDL_BlendMode blending) {}
-    void set_alpha(Uint8 alpha) {}
-
-    void render(int x, int y);
-
-    inline int get_width() const { return m_width; }
-    inline int get_height() const { return m_height; }
-
-private:
-    SDL_Texture* m_texture;
-    SDL_Renderer* m_renderer;
-    SDL_Color m_color;
-    TTF_Font* m_font;
-    int m_width;
-    int m_height;
-};
-
-
-struct TextManager {
-    TextManager(SDL_Renderer* renderer) : m_renderer(renderer) {}
-    virtual ~TextManager() { free_all(); }
-
-    void add_texture(SDL_Color color, TTF_Font* font, int x, int y);
-    void render_all();
-    void free_all();
-
-    std::vector<LTexture*> textures;
-    SDL_Renderer* m_renderer;
-};
-
-// Layout
-struct VTextLayout : TextManager {
-    VTextLayout(SDL_Renderer* renderer, int x, int y);
-    VTextLayout(SDL_Renderer* renderer, int y);
-    virtual ~VTextLayout() { free_all(); }
-
-    void add_texture(SDL_Color color, TTF_Font* font);
-
-    /**
-     * @brief Load texture with text and render it
-     * @param row The row index of the texture in the layout, 1 being the first row (top)
-     * @param text The string to load in the texture
-     * @return true if the text is successfully loaded
-     */
-    bool load_text_and_render(size_t row, std::string text);
-
-    // Top left corner of the layout
-    int m_x;
-    int m_y;
-    // Or initialized to 0 in case of a centered layout
-    bool centered;
-};
-
-struct HTextLayout : TextManager {
-    HTextLayout(SDL_Renderer* renderer, int x, int y) : TextManager(renderer), m_x(x), m_y(y) {}
-    virtual ~HTextLayout() { free_all(); }
-
-    void add_texture(SDL_Color color, TTF_Font* font);
-    bool load_text_and_render(size_t column, std::string text, int offset = 0, bool center = false);
-
-
-    int m_x;
-    int m_y;
-};
-
 
 #endif /* UTILS_H */
 

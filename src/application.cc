@@ -12,19 +12,17 @@
 #include "render.h"
 #include "config.h"
 
-constexpr unsigned sim_substeps(30);
+constexpr unsigned sim_substeps(20);
 
-Application::Application(SDL_Window* window, SDL_Renderer* renderer, double w, double h,
-        TTF_Font* font)
+Application::Application(SDL_Window* window, SDL_Renderer* renderer, double w, double h)
 :   m_window(window),
     m_renderer(renderer),
     m_width(w),
     m_height(h),
-    m_font_main(font),
     m_arrow_cursor(SDL_CreateSystemCursor(SDL_SystemCursor::SDL_SYSTEM_CURSOR_ARROW)),
     m_crosshair_cursor(SDL_CreateSystemCursor(SDL_SystemCursor::SDL_SYSTEM_CURSOR_CROSSHAIR)),
     m_exit_status(0),
-    m_editor(m_renderer, m_font_main, SCENE_WIDTH / 100),
+    m_editor(m_renderer, SCENE_WIDTH / 100),
     frame_time(0),
     time_step(1.0 / 60.0)
 {
@@ -47,9 +45,6 @@ Application::Application(SDL_Window* window, SDL_Renderer* renderer, double w, d
 }
 
 Application::~Application() {
-    TTF_CloseFont(m_font_main);
-    m_font_main = nullptr;
-
     SDL_FreeCursor(m_arrow_cursor);
     m_arrow_cursor = nullptr;
     SDL_FreeCursor(m_crosshair_cursor);
@@ -60,7 +55,6 @@ Application::~Application() {
     m_window = nullptr;
     m_renderer = nullptr;
 
-    TTF_Quit();
     SDL_Quit();
 
     ImGui_ImplSDLRenderer2_Shutdown();
@@ -72,10 +66,6 @@ int Application::run() {
     if (m_exit_status) {
         return m_exit_status;
     }
-
-    VTextLayout left_panel(m_renderer, 10, 10);
-    left_panel.add_texture(text_color, m_font_main);
-    left_panel.add_texture(text_color, m_font_main);
 
     Uint64 now(SDL_GetPerformanceCounter());
     Uint64 old(0);

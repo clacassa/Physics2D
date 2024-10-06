@@ -1,0 +1,87 @@
+include(FetchContent)
+
+cmake_minimum_required(VERSION 3.22)
+
+project(Physics2D
+    VERSION 0.1.0
+    LANGUAGES C CXX
+)
+
+set(CMAKE_DEBUG_POSTFIX d)
+
+add_library(compiler_flags INTERFACE)
+target_compile_features(compiler_flags INTERFACE cxx_std_17)
+
+# add compiler warning flags just when building this project via
+# the BUILD_INTERFACE genex
+set(gcc_like_cxx "$<COMPILE_LANG_AND_ID:CXX,ARMClang,AppleClang,Clang,GNU,LCC>")
+set(msvc_cxx "$<COMPILE_LANG_AND_ID:CXX,MSVC>")
+target_compile_options(compiler_flags INTERFACE
+  "$<${gcc_like_cxx}:$<BUILD_INTERFACE:-g;-O3;-Wall;-Wextra;-Wshadow;-Wformat=2;-Wunused>>"
+  "$<${msvc_cxx}:$<BUILD_INTERFACE:-W3>>"
+)
+
+# FetchContent_Declare(
+#     SDL2
+#     URL https://github.com/libsdl-org/SDL/archive/refs/tags/release-2.30.7.tar.gz
+# )
+# FetchContent_MakeAvailable(SDL2)
+find_package(SDL2 REQUIRED)
+
+add_library(imgui STATIC
+    imgui/imgui.cpp
+    imgui/imgui_draw.cpp
+    imgui/imgui_demo.cpp
+    imgui/imgui_tables.cpp
+    imgui/imgui_widgets.cpp
+    imgui/imgui_impl_sdl2.cpp
+    imgui/imgui_impl_sdlrenderer2.cpp
+)
+
+target_link_libraries(imgui PUBLIC ${SDL2_LIBRARIES})
+target_include_directories(imgui PUBLIC imgui)
+
+set(CMAKE_CXX_STANDARD 17)
+
+set(PHYSICS2D_SOURCES
+    src/application.cc
+    src/application.h
+    src/broad_phase.cc
+    src/broad_phase.h
+    src/collision.cc
+    src/collision.h
+    src/config.h
+    src/control.h
+    src/editor.cc
+    src/editor.h
+    src/link.cc
+    src/link.h
+    src/main.cc
+    src/narrow_phase.cc
+    src/narrow_phase.h
+    src/render.cc
+    src/render.h
+    src/rigid_body.cc
+    src/rigid_body.h
+    src/settings.cc
+    src/settings.h
+    src/utils.cc
+    src/utils.h
+    src/vector2.cc
+    src/vector2.h
+    src/world.cc
+    src/world.h
+)
+
+add_executable(physics2d ${PHYSICS2D_SOURCES})
+
+set_target_properties(physics2d PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED YES
+    DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX}
+)
+
+target_link_libraries(physics2d PUBLIC SDL2::SDL2 SDL2::SDL2main imgui compiler_flags)
+
+# add_subdirectory(src)
+# add_subdirectory(tests)

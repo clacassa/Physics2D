@@ -2,7 +2,6 @@
 #define APPLICATION_H
 
 #include <SDL.h>
-#include <SDL_ttf.h>
 #include "control.h"
 #include "world.h"
 #include "editor.h"
@@ -10,7 +9,7 @@
 
 class Application {
 public:
-    Application(SDL_Window* window, SDL_Renderer* renderer, double w, double h, TTF_Font* font);
+    Application(SDL_Window* window, SDL_Renderer* renderer, double w, double h);
     virtual ~Application();
 
     int run();
@@ -19,7 +18,6 @@ private:
     SDL_Renderer* m_renderer;
     unsigned m_width;
     unsigned m_height;
-    TTF_Font* m_font_main;
     SDL_Cursor* m_arrow_cursor;
     SDL_Cursor* m_crosshair_cursor;
     

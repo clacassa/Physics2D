@@ -6,9 +6,6 @@
 #include "link.h"       // Spring::DampingType
 #include "render.h"
 #include "vector2.h"
-#include "utils.h"      // Texture, VTextLayout
-
-//extern const unsigned SCREEN_WIDTH;
 
 constexpr float spring_stiffness_default(0.5 * steel_density);
 constexpr float spring_stiffness_infinite(1e4f * steel_density);
@@ -17,7 +14,7 @@ class Editor {
 public:
     typedef std::vector<std::vector<Vector2>> Quadrant;
 
-    Editor(SDL_Renderer* renderer, TTF_Font* font, double division);
+    Editor(SDL_Renderer* renderer, double division);
     virtual ~Editor() {}
 
     void render();
@@ -41,9 +38,6 @@ private:
 
     // Rendering
     SDL_Renderer* m_renderer;
-    TTF_Font* m_font;
-    LTexture m_title;
-    VTextLayout m_banner;
     std::string help;
 
     // Control

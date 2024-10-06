@@ -1,15 +1,13 @@
 #include <iostream>
-#include "SDL_render.h"
 #include "link.h"
 #include "render.h"
 #include "rigid_body.h"
 #include "vector2.h"
 
-
 Spring::Spring(RigidBody* A_, RigidBody* B_, double length, float stiffness, DampingType damping)
 :   A(A_),
     B(B_),
-    l_0(length),
+    l0(length),
     k(stiffness)
 {
     const double m(A->get_mass() * B->get_mass() / (A->get_mass() + B->get_mass()));
@@ -38,12 +36,12 @@ void Spring::apply() {
     const Vector2 n(axis.normalized());
     // Calculate equilibrum position
     if (A->is_static() || !A->is_enabled())
-        equilibrum_pos = A->get_p() - n * (l_0 + dot2(B->get_f(), n) / k);
+        equilibrum_pos = A->get_p() - n * (l0 + dot2(B->get_f(), n) / k);
     else if (B->is_static() || !B->is_enabled())
-        equilibrum_pos = B->get_p() + n * (l_0 + dot2(A->get_f(), n) / k);
+        equilibrum_pos = B->get_p() + n * (l0 + dot2(A->get_f(), n) / k);
 
     // Calculate and apply spring forces on each body
-    const double callback(k * (l - l_0));
+    const double callback(k * (l - l0));
     const double damping(actual_damping * dot2((A->get_v() - B->get_v()), n));
     if (!B->is_dynamic())
         A->subject_to_force(-n * (callback + damping));
@@ -54,7 +52,7 @@ void Spring::apply() {
         B->subject_to_force(n * (callback + damping) * 0.5);
     }
 
-    position_curve.push_back(l - l_0);
+    position_curve.push_back(l - l0);
 }
 
 void Spring::draw(SDL_Renderer* renderer) {
@@ -68,7 +66,7 @@ void Spring::draw(SDL_Renderer* renderer) {
     const Vector2 B_pos(B->get_p());
     const Vector2 axis(A_pos - B_pos);
     const double length(axis.norm());
-    const unsigned n_coils(l_0 * 10);
+    const unsigned n_coils(l0 * 10);
 
     if (n_coils > 0) {
         const double anchor_height((length / (double)n_coils) / 2.0);
@@ -94,7 +92,7 @@ void Spring::draw(SDL_Renderer* renderer) {
 }
 
 double Spring::energy() const {
-    const double x(Vector2(B->get_p() - A->get_p()).norm() - l_0);
+    const double x(Vector2(B->get_p() - A->get_p()).norm() - l0);
     return 0.5 * k * x * x;
 }
 
@@ -117,14 +115,14 @@ void Spring::draw_coil(SDL_Renderer* renderer, Vector2 start, Vector2 direction,
 // :   a(A),
 //     b(B),
 //     k(stiffness),
-//     l_0(length)
+//     l0(length)
 // {}
 
 // void Spring::apply() {
 //     Vector2 axis(a->get_p() - b->get_p());
 //     double l(axis.norm());
 //     Vector2 n(axis.normalized());
-//     Vector2 callback_force(n * k * (l - l_0));
+//     Vector2 callback_force(n * k * (l - l0));
 
 //     if (!a->is_movable())
 //         b->subject_to_force(callback_force);
@@ -144,7 +142,7 @@ void Spring::draw_coil(SDL_Renderer* renderer, Vector2 start, Vector2 direction,
 // }
 
 // double Spring::energy() const {
-//     const double x(Vector2(a->get_p() - b->get_p()).norm() - l_0);
+//     const double x(Vector2(a->get_p() - b->get_p()).norm() - l0);
 //     return 0.5 * k * x * x;
 // }
 

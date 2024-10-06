@@ -1,13 +1,9 @@
 #include <climits>
-#include <chrono>
 #include <cassert>
 #include "narrow_phase.h"
 #include "rigid_body.h"
 #include "utils.h"
 #include "config.h"
-
-using namespace std::chrono;
-
 
 namespace {
     // A 2D simplex (point, segment or triangle)

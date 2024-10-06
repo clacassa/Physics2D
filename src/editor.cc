@@ -5,13 +5,10 @@
 #include "render.h"
 #include "rigid_body.h"
 
-Editor::Editor(SDL_Renderer* renderer, TTF_Font* font, double division)
+Editor::Editor(SDL_Renderer* renderer, double division)
 :   div(division),
     active_node(0, 0),
     m_renderer(renderer),
-    m_font(font),
-    m_title(m_renderer, text_color, m_font),
-    m_banner(m_renderer, 10), // centered layout
     body_type(DYNAMIC),
     body_enabled(true),
     spring_incompressible(false),
@@ -20,18 +17,10 @@ Editor::Editor(SDL_Renderer* renderer, TTF_Font* font, double division)
     show_help_banner(true)
 {
     update_grid();
-
-    m_banner.add_texture(text_color, m_font);
-    m_banner.add_texture(text_color, m_font);
 }
 
 void Editor::render() {
     render_grid();
-    // imgui_controls();
-    m_banner.load_text_and_render(1, "EDITOR VIEW\n");
-    if (!show_help_banner) {
-        m_banner.load_text_and_render(2, "Press F1 to show the controls");
-    }
 }
 
 Vector2 Editor::track_point(Vector2 p) {

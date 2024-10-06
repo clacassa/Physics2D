@@ -1,6 +1,5 @@
 #include <iostream>
 #include <array>
-#include "SDL_render.h"
 #include "rigid_body.h"
 #include "narrow_phase.h"
 #include "collision.h"
@@ -8,7 +7,6 @@
 #include "render.h"
 #include "config.h"
 #include "vector2.h"
-
 
 RigidBody::RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, BodyType type_, bool enabled_, 
         Vertices vertices)
@@ -319,8 +317,12 @@ void Ball::handle_wall_collisions() {
         collision_v.count = 1;
     }
 
-    solve_wall_collision(this, collision_h);
-    solve_wall_collision(this, collision_v);
+    if (collision_h.count > 0) {
+        solve_wall_collision(this, collision_h);
+    }
+    if (collision_v.count > 0) {
+        solve_wall_collision(this, collision_v);
+    }
 }
 
 void Ball::update_bounding_box() {

@@ -1,5 +1,4 @@
 #include <iostream>
-#include "SDL_render.h"
 #include "world.h"
 #include "rigid_body.h"
 #include "broad_phase.h"

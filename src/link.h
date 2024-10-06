@@ -20,7 +20,7 @@ public:
 private:
     RigidBody* A;
     RigidBody* B;
-    double l_0; // rest length
+    double l0; // rest length
     float k; // stiffness
     double critical_damping; // c_crit = 2m sqrt(k / m)
     double actual_damping; // damping coefficient lambda

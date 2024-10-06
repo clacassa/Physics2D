@@ -3,7 +3,6 @@
 #include "render.h"
 #include "vector2.h"
 
-
 namespace camera {
     static Vector2 position;
 }
@@ -46,7 +45,7 @@ void render_fill_circle_fast(SDL_Renderer * renderer, Vector2 center, double rad
         // 70/99 is used as an approximation of 1/sqrt(2)
         const int approximation(radius * 8 * 70 / 99);
         const int points_qty((approximation + (8 - 1)) & -8);
-        SDL_Point points[points_qty];
+        std::vector<SDL_Point> points(points_qty * 2);
         int draw_count(0);
 
         const int32_t diameter((radius * 2));
@@ -86,7 +85,9 @@ void render_fill_circle_fast(SDL_Renderer * renderer, Vector2 center, double rad
             }
         }
 
-        SDL_RenderDrawPoints(renderer, points, draw_count);
+        for (unsigned i(0); i < points.size(); ++i) {
+            SDL_RenderDrawPoint(renderer, points[i].x, points[i].y);
+        }
         --radius;
     }
 }

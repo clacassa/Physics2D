@@ -14,14 +14,13 @@ const SDL_Color focus_color({255, 0, 255, 255});
 extern const unsigned SCREEN_WIDTH;
 extern const unsigned SCREEN_HEIGHT;
 
-extern const double SCENE_WIDTH;          // Scene width in meters
-extern double RENDER_SCALE;                 // Pixel to meter ratio (#of px for 1m)
+extern const double SCENE_WIDTH;        // Scene width in meters
+extern double RENDER_SCALE;             // Pixel to meter ratio (#of px for 1m)
 extern const double SCENE_HEIGHT;
 
 extern const unsigned SCREEN_FPS;
-// extern const unsigned SCREEN_TICKS_PER_FRAME;
 
-const unsigned STATUSBAR_HEIGHT(18);   // In pixels
+const unsigned STATUSBAR_HEIGHT(18);    // In pixels
 
 void render_point(SDL_Renderer* renderer, Vector2 p);
 void render_line(SDL_Renderer* renderer, Vector2 p1, Vector2 p2);
