@@ -18,23 +18,49 @@ void render_line(SDL_Renderer* renderer, Vector2 p1, Vector2 p2) {
     SDL_RenderDrawLineF(renderer, px1.x, px1.y, px2.x, px2.y);
 }
 
-void render_circle_fill(SDL_Renderer *renderer, Vector2 center, double radius) {
-    radius *= RENDER_SCALE;
+void render_circle(SDL_Renderer* renderer, Vector2 center, double radius) {
     Vector2 center_px(camera::world_to_screen(center));
-    radius = (int)radius;
+    int x0(center_px.x);
+    int y0(center_px.y);
+    int rad(radius * RENDER_SCALE);
+    int f(1 - rad);
+    int dx(0);
+    int dy(-2 * rad);
+    int x(0);
+    int y(rad);
 
-    for (int w(0); w < radius * 2; ++w) {
-        for (int h(0); h < radius * 2; ++h) {
-            int dx(radius - w); // horizontal offset
-            int dy(radius - h); // vertical offset
-            if ((dx*dx + dy*dy) <= (radius * radius))
-                SDL_RenderDrawPointF(renderer, center_px.x + dx, center_px.y + dy);
+    SDL_Point initial_points[4];
+    initial_points[0] = {x0, y0 + rad};
+    initial_points[1] = {x0, y0 - rad};
+    initial_points[2] = {x0 + rad, y0};
+    initial_points[3] = {x0 - rad, y0};
+    SDL_RenderDrawPoints(renderer, initial_points, 4);
+
+    while (x < y) {
+        if (f >= 0) {
+            --y;
+            dy += 2;
+            f += dy;
         }
+
+        ++x;
+        dx += 2;
+        f += dx + 1;
+
+        SDL_Point points[8];
+        points[0] = {x0 + x, y0 + y};
+        points[1] = {x0 - x, y0 + y};
+        points[2] = {x0 + x, y0 - y};
+        points[3] = {x0 - x, y0 - y};
+        points[4] = {x0 + y, y0 + x};
+        points[5] = {x0 - y, y0 + x};
+        points[6] = {x0 + y, y0 - x};
+        points[7] = {x0 - y, y0 - x};
+        SDL_RenderDrawPoints(renderer, points, 8);
     }
 }
 
-
-void render_circle_fill_fast(SDL_Renderer * renderer, Vector2 center, double radius_) {
+void render_circle_fill(SDL_Renderer * renderer, Vector2 center, double radius_) {
     Vector2 center_px(camera::world_to_screen(center));
     radius_ *= RENDER_SCALE;
     int x(center_px.x);
@@ -92,40 +118,44 @@ void render_circle_fill_fast(SDL_Renderer * renderer, Vector2 center, double rad
     }
 }
 
-void render_circle(SDL_Renderer* renderer, Vector2 center, double radius) {
+void render_circle_fill_raster(SDL_Renderer* renderer, Vector2 center, double radius) {
     Vector2 center_px(camera::world_to_screen(center));
-    radius *= RENDER_SCALE;
-    double error(-radius);
-    double x_(radius);
-    double y_(0);
-    double cx(center_px.x);
-    double cy(center_px.y);
+    int x0(center_px.x);
+    int y0(center_px.y);
+    int rad(radius * RENDER_SCALE);
+    int f(1 - rad);
+    int dx(0);
+    int dy(-2 * rad);
+    int x(0);
+    int y(rad);
 
-    while (x_ >= y_) {
-        SDL_RenderDrawPoint(renderer, (int)(cx + x_), (int)(cy + y_));
-        SDL_RenderDrawPoint(renderer, (int)(cx + y_), (int)(cy + x_));
-        if (x_ != 0) {
-            SDL_RenderDrawPoint(renderer, (int)(cx - x_), (int)(cy + y_));
-            SDL_RenderDrawPoint(renderer, (int)(cx + y_), (int)(cy - x_));
-        }
-        if (y_ != 0) {
-            SDL_RenderDrawPoint(renderer, (int)(cx + x_), (int)(cy - y_));
-            SDL_RenderDrawPoint(renderer, (int)(cx - y_), (int)(cy + x_));
-        }
-        if (x_ != 0 && y_ != 0) {
-            SDL_RenderDrawPoint(renderer, (int)(cx - x_), (int)(cy - y_));
-            SDL_RenderDrawPoint(renderer, (int)(cx - y_), (int)(cy - x_));
+    SDL_RenderDrawLine(renderer, x0 - rad, y0, x0 + rad, y0);
+
+    int old_x(0);
+    int old_y(0);
+    while (x < y) {
+        if (f >= 0) {
+            --y;
+            dy += 2;
+            f += dy;
         }
 
-        error += y_;
-        ++y_;
-        error += y_;
+        ++x;
+        dx += 2;
+        f += dx + 1;
 
-        if (error >= 0) {
-            --x_;
-            error -= x_;
-            error -= x_;
+        if (y != old_y) {
+            SDL_RenderDrawLine(renderer, x0 - x, y0 + y, x0 + x, y0 + y);
+            SDL_RenderDrawLine(renderer, x0 - x, y0 - y, x0 + x, y0 - y);
         }
+
+        if (x != old_x) {
+            SDL_RenderDrawLine(renderer, x0 - y, y0 + x, x0 + y, y0 + x);
+            SDL_RenderDrawLine(renderer, x0 - y, y0 - x, x0 + y, y0 - x);
+        }
+
+        old_x = x; 
+        old_y = y;
     }
 }
 

@@ -153,8 +153,9 @@ void World::render(SDL_Renderer* renderer, bool running, Settings& settings) {
     if (settings.draw_contact_points) {
         SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
         for (auto contact : m_contacts) {
-            for (auto point : contact->contact_points) {
-                render_circle_fill_fast(renderer, point, 3.5 / RENDER_SCALE);
+            for (unsigned i(0); i < contact->count; ++i) {
+                const auto point(contact->contact_points[i]);
+                render_circle_fill_raster(renderer, point, 3.5 / RENDER_SCALE);
             }
         }
     }
@@ -162,7 +163,8 @@ void World::render(SDL_Renderer* renderer, bool running, Settings& settings) {
     if (settings.draw_collision_normal) {
         SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
         for (auto contact : m_contacts) {
-            for (auto point : contact->contact_points) {
+            for (unsigned i(0); i < contact->count; ++i) {
+                const auto point(contact->contact_points[i]);
                 render_line(renderer, point, point + contact->normal / RENDER_SCALE * 20);
             }
         }

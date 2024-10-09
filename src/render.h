@@ -20,14 +20,11 @@ extern const double SCENE_HEIGHT;
 
 extern const unsigned SCREEN_FPS;
 
-const unsigned STATUSBAR_HEIGHT(18);    // In pixels
-
 void render_point(SDL_Renderer* renderer, Vector2 p);
 void render_line(SDL_Renderer* renderer, Vector2 p1, Vector2 p2);
-void render_circle_fill(SDL_Renderer* renderer, Vector2 center, double radius);
-// Render circle algorithm, very fast
-void render_circle_fill_fast(SDL_Renderer*, Vector2 center, double radius);
 void render_circle(SDL_Renderer* renderer, Vector2 center, double radius);
+void render_circle_fill(SDL_Renderer*, Vector2 center, double radius);
+void render_circle_fill_raster(SDL_Renderer* renderer, Vector2 center, double radius);
 void render_rectangle(SDL_Renderer* renderer, Vector2 center, double w, double h);
 
 /**

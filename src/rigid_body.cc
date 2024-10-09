@@ -262,7 +262,7 @@ void Ball::draw(SDL_Renderer* renderer) {
 
     if (!is_static() && enabled) {
         SDL_SetRenderDrawColor(renderer, 0.5 * color.r, 0.5 * color.g, 0.5 * color.b, 0.5*color.a);
-        render_circle_fill_fast(renderer, p, r);
+        render_circle_fill_raster(renderer, p, r);
         SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
         render_circle(renderer, p, r);
         render_line(renderer, p, {p.x + r * cos(theta), p.y + r * sin(theta)});
@@ -281,11 +281,6 @@ void Ball::draw(SDL_Renderer* renderer) {
             render_line(renderer, p, {p.x + r * cos(PI / 4.0), p.y - r * sin(PI / 4.0)});
         }
     }
-#ifdef DEBUG
-    //SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-    //render_circle_fill_fast(renderer, m_debug1, 3 / RENDER_SCALE);
-    //render_circle_fill_fast(renderer, m_debug2, 3 / RENDER_SCALE);
-#endif
 }
 
 void Ball::handle_wall_collisions() {
