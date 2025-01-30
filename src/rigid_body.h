@@ -7,14 +7,14 @@
 #include <vector>
 #include <string>
 #include "vector2.h"
+#include "shape.h"
 
 typedef std::vector<Vector2> Vertices;
 
-enum BodyType { STATIC, KINEMATIC, DYNAMIC };
-
-struct AABB {
-    Vector2 min; // Bottom left corner
-    Vector2 max; // Top right corner
+enum BodyType {
+    STATIC,
+    KINEMATIC,
+    DYNAMIC
 };
 
 constexpr double steel_density(7930); // kg / m^3
@@ -30,13 +30,15 @@ public:
     virtual ~RigidBody();
 
     void step(double dt);
-    void subject_to_force(const Vector2 force);
-    void subject_to_torque(const Vector2 world_point, const Vector2 force);
+    void subject_to_force(const Vector2 force, const Vector2 point);
+    void subject_to_torque(const double torque);
     void reset_forces();
     void move(const Vector2 delta_p, bool update_AABB = true);
     void rotate(const double d_theta, bool update_AABB = true);
     void linear_impulse(const Vector2 impulse);
     void angular_impulse(const double impulse);
+    void set_linear_vel(const Vector2 vel);
+    void set_angular_vel(const double omega);
     
     double energy(bool gravity_enabled) const;
     double k_energy() const;
@@ -51,31 +53,27 @@ public:
 
     std::string dump(bool gravity_enabled) const;
 
-    inline Vector2 get_a() const { return a; }
-    inline Vector2 get_v() const { return v; }
-    inline Vector2 get_p() const { return p; }
-    inline Vector2 get_f() const { return f; }
-    inline double get_a_theta() const { return a_theta; }
-    inline double get_theta() const { return theta; }
-    inline double get_omega() const { return omega; }
-    inline double get_mass() const { return m; }
-    inline double get_inv_m() const { return inv_m; }
-    inline double get_I() const { return I; }
-    inline double get_inv_I() const { return inv_I; }
-    inline double get_cor() const { return e; }
+    inline Vector2 get_a() const { return m_acc; }
+    inline Vector2 get_v() const { return m_vel; }
+    inline Vector2 get_p() const { return m_pos; }
+    inline Vector2 get_f() const { return m_force; }
+    inline double get_alpha() const { return m_alpha; }
+    inline double get_omega() const { return m_omega; }
+    inline double get_theta() const { return m_theta; }
+    inline double get_mass() const { return m_mass; }
+    inline double get_inv_m() const { return m_inv_mass; }
+    inline double get_I() const { return m_inertia; }
+    inline double get_inv_I() const { return m_inv_inertia; }
+    inline double get_cor() const { return m_restitution; }
     inline BodyType get_type() const { return m_type; }
     inline bool is_static() const { return m_type == STATIC; }
     inline bool is_dynamic() const { return m_type == DYNAMIC; }
-    inline bool is_enabled() const { return enabled; }
-    inline std::string get_friction() const { return static_friction ? "STATIC" : "DYNAMIC"; }
+    inline bool is_enabled() const { return m_enabled; }
 
     inline bool has_vertices() const { return !m_vertices.empty(); }
     inline virtual std::vector<Vector2> get_vertices() const { return m_vertices; }
     inline virtual double get_radius() const { return 0.0; }
     inline AABB get_AABB() const { return m_aabb; }
-
-    inline void set_test(const size_t test) { id = test; }
-    inline void set_friction_debug(const bool friction) { static_friction = friction; }
 
     virtual void handle_wall_collisions() = 0;
     virtual void update_bounding_box() = 0;
@@ -83,42 +81,38 @@ public:
 
 protected:
     // linear, x y axis
-#ifdef VERLET
-    Vector2 p_old;
-#endif
-    Vector2 a;
-    Vector2 v;
-    Vector2 p;
-    Vector2 f;
+    Vector2 m_acc;
+    Vector2 m_vel;
+    Vector2 m_pos;
+    Vector2 m_force;
     // angular, z axis
-    double a_theta;
-    double omega;
-    double theta;
-    double torque;
+    double m_alpha;
+    double m_omega;
+    double m_theta;
+    double m_torque;
 
-    double m;
-    double inv_m;
-    double I;
-    double inv_I;
+    double m_mass;
+    double m_inv_mass;
+    double m_inertia;
+    double m_inv_inertia;
 
     /*
      * coefficient of restitution (COR, e)   e = 0.69 for glass, 0.78 for stainless steel
      * https://en.wikipedia.org/wiki/Coefficient_of_restitution
      */
-    double e;
+    double m_restitution;
 
     BodyType m_type;
-    bool enabled;
+    bool m_enabled;
 
     Vertices m_vertices;
     AABB m_aabb;
 
     size_t max_track_length;
     std::deque<Vector2> track;
-    SDL_Color color;
+    SDL_Color m_color;
 
-    size_t id;
-    bool static_friction;
+    size_t m_id;
 };
 
 

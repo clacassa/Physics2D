@@ -44,12 +44,12 @@ void Spring::apply() {
     const double callback(k * (l - l0));
     const double damping(actual_damping * dot2((A->get_v() - B->get_v()), n));
     if (!B->is_dynamic())
-        A->subject_to_force(-n * (callback + damping));
+        A->subject_to_force(-n * (callback + damping), A->get_p());
     else if (!A->is_dynamic())
-        B->subject_to_force(n * (callback + damping));
+        B->subject_to_force(n * (callback + damping), B->get_p());
     else {
-        A->subject_to_force(-n * (callback + damping) * 0.5);
-        B->subject_to_force(n * (callback + damping) * 0.5);
+        A->subject_to_force(-n * (callback + damping) * 0.5, A->get_p());
+        B->subject_to_force(n * (callback + damping) * 0.5, B->get_p());
     }
 
     position_curve.push_back(l - l0);

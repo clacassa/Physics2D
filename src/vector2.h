@@ -12,7 +12,6 @@ struct Vector2 {
     Vector2 normal() const;
     Vector2 normalized() const;
     Vector2 rotated(const double alpha) const;
-    inline static Vector2 zero() { return Vector2(0, 0); }
 
     const Vector2 operator+(const Vector2& v) const;
     const Vector2 operator-(const Vector2& v) const;

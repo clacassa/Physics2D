@@ -205,6 +205,10 @@ void Application::parse_keybd_event(SDL_Event& keybd_event) {
             // demo_collision();
             demo_stacking();
             break;
+        case SDLK_9:
+            m_world.destroy_all();
+            demo_collision();
+            break;
         case SDLK_1:
             m_ctrl.editor.active = false;
             break;
@@ -296,12 +300,14 @@ void Application::parse_keybd_event(SDL_Event& keybd_event) {
             camera::translate_screen_x(50);
             break;
         case SDLK_LESS:
+            if(keybd_event.key.keysym.mod == KMOD_LSHIFT) {
+                camera::zoom_in();
+            }else if (RENDER_SCALE > 0.1) {
+                camera::zoom_out();
+            }
+            
             if (m_ctrl.editor.active) {
-                if(keybd_event.key.keysym.mod == KMOD_LSHIFT) {
-
-                }else {
-
-                }
+                m_editor.update_grid();
             }
             break;
         case SDLK_F1:
@@ -437,6 +443,7 @@ void Application::show_main_overlay(const float avg_fps) {
     ImGui::Text("Average FPS (cap %.1u) : %.1d", SCREEN_FPS, int(avg_fps));
     ImGui::Text("Delta time : %.1f ms", frame_time);
     ImGui::Text("Freq : %.1f Hz", sim_substeps * avg_fps);
+    ImGui::Text("Time step : %.4f ms", time_step);
     ImGui::Text("Steps : %.1u", sim_substeps);
     ImVec4 color((!m_ctrl.simulation.running), (m_ctrl.simulation.running), 0.3, 1);
     ImGui::TextColored(color, (m_ctrl.simulation.running ? "RUNNING" : "PAUSED"));
@@ -583,8 +590,8 @@ void Application::show_placeholder_object() {
         if (property_changed) {
             obj->move(Vector2(values[2], values[3]) - obj->get_p());
             obj->rotate(deg2rad(values[6]) - obj->get_theta());
-            obj->linear_impulse(Vector2(values[4], values[5]) - obj->get_v());
-            obj->angular_impulse(values[7] - obj->get_omega());
+            obj->set_linear_vel(Vector2(values[4], values[5]));
+            obj->set_angular_vel(values[7]);
         }
 
         ImGui::TreePop();

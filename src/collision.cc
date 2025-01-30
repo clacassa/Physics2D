@@ -64,16 +64,8 @@ void solve_collision(RigidBody* a, RigidBody* b, const Manifold& collision) {
         Vector2 j_f;
         if (abs(friction) <= j_s) {
             j_f = -j_t;
-#ifdef DEBUG
-            a->set_friction_debug(true);
-            b->set_friction_debug(true);
-#endif
         }else {
             j_f = -t * j_d;
-#ifdef DEBUG
-            a->set_friction_debug(false);
-            b->set_friction_debug(false);
-#endif
         }
         friction_list[i] = j_f;
 #endif /* FRICTION */
@@ -154,14 +146,8 @@ void solve_wall_collision(RigidBody* body, const Manifold& collision) {
         Vector2 j_f;
         if (abs(friction) <= j_s) {
             j_f = j_t;
-#ifdef DEBUG
-            body->set_friction_debug(true);
-#endif
         }else {
             j_f = -t * j_d;
-#ifdef DEBUG
-            body->set_friction_debug(false);
-#endif
         }
         friction_list[i] = j_f;
 #endif /* FRICTION */

@@ -30,7 +30,7 @@ void rk4_step(RigidBody* body, double dt) {
 
     U[0] = body->get_a().x;
     U[1] = body->get_a().y;
-    U[2] = body->get_a_theta();
+    U[2] = body->get_alpha();
 
     // x, vx
     K1[0] = dt * X[2];

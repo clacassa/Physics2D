@@ -110,9 +110,7 @@ void World::step(double dt, int substeps, Settings& settings, bool perft) {
         walls_timer.reset();
         if (walls_enabled) {
             for (auto body : m_bodies) {
-                if (!body->is_static()) {
-                    body->handle_wall_collisions();
-                }
+                body->handle_wall_collisions();
             }
             m_profile.walls += walls_timer.get_microseconds();
         }
@@ -365,7 +363,7 @@ void World::apply_forces() {
     for (auto body : m_bodies) {
         body->reset_forces();
         if (gravity_enabled && body->is_enabled() && body->is_dynamic()) {
-            body->subject_to_force({0.0, -body->get_mass() * g});
+            body->subject_to_force({0.0, -body->get_mass() * g}, body->get_p());
         }
     }
     for (auto spring : m_springs) {

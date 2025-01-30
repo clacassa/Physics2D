@@ -281,7 +281,6 @@ Manifold collide_polygon_polygon(RigidBody* a, RigidBody* b) {
     auto b_vertices(b->get_vertices());
 
     result.depth = INT_MAX;
-    result.contact_points[0] = Vector2::zero();
 
     // Separation Axis Theorem
     for (size_t i(0); i < a_vertices.size(); ++i) {
@@ -661,7 +660,7 @@ namespace {
             D = -D;
 
             // assert(D != Vector2::zero());
-            if (D == Vector2::zero()) {
+            if (D == vector2_zero) {
                 return 0;
             }
 
