@@ -126,64 +126,6 @@ Vector2 support(const Shape* shape, const Vector2 d) {
     return support;
 }
 
-// Vector2 support(RigidBody* body, Vector2 d, Vector2 skip_me) {
-//     Vector2 support;
-//     if (body->has_vertices()) {
-//         double max(-INT_MAX);
-//         for (auto v : body->get_vertices()) {
-//             if (v == skip_me) {
-//                 continue;
-//             }
-//
-//             double projection(dot2(v, d));
-//             if (projection >= max) {
-//                 max = projection;
-//                 support = v;
-//             }
-//         }
-//     }else {
-//         support = body->get_p() + d.normalized() * body->get_radius();
-//     }
-//
-//     return support;
-// }
-
-
-// Manifold detect_collision(RigidBody* a, RigidBody* b, Timer& gjk, Timer& epa, Timer& clip) {
-//     Manifold result;
-//     if (!a->is_dynamic() && !b->is_dynamic()) {
-//         return result;
-//     }
-// #ifdef SAT
-//     const bool a_is_polygon(a->has_vertices());
-//     const bool b_is_polygon(b->has_vertices());
-//
-//     if (!a_is_polygon) {
-//         if (!b_is_polygon) {
-//             result = collide_circle_circle(a, b);
-//         }else {
-//             // result.intersecting = collide_circle_polygon(a, b, result);
-//             result = collide_convex(a, b, gjk, epa, clip);
-//         }
-//     }else if (!b_is_polygon) {
-//         // result.intersecting = collide_circle_polygon(b, a, result);
-//         // result.normal *= -1;
-//         result = collide_convex(a, b, gjk, epa, clip);
-//     }else {
-// # ifdef GJK_EPA
-//         result = collide_convex(a, b, gjk, epa, clip);
-// # else
-//         result = collide_polygon_polygon(a, b);
-// # endif /* GJK_EPA */
-//     }
-// #else
-// # ifdef GJK_EPA
-//     result = collide_convex(a, b, gjk_time, epa_time);
-// # endif /* GJK_EPA */
-// #endif /* SAT */
-//     return result;
-// }
-
 Manifold collide_circle_circle(Shape* a, Shape* b) {
     Manifold result;
     result.intersecting = false;
