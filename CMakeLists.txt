@@ -8,6 +8,7 @@ project(Physics2D
 )
 
 set(CMAKE_DEBUG_POSTFIX d)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_library(compiler_flags INTERFACE)
 target_compile_features(compiler_flags INTERFACE cxx_std_17)
@@ -65,6 +66,10 @@ set(PHYSICS2D_SOURCES
     src/rigid_body.h
     src/settings.cc
     src/settings.h
+    src/shape.h
+    src/shape.cc
+    src/transform2.h
+    src/transform2.cc
     src/utils.cc
     src/utils.h
     src/vector2.cc
@@ -84,4 +89,4 @@ set_target_properties(physics2d PROPERTIES
 target_link_libraries(physics2d PUBLIC SDL2::SDL2 SDL2::SDL2main imgui compiler_flags)
 
 # add_subdirectory(src)
-# add_subdirectory(tests)
+add_subdirectory(tests)
