@@ -7,10 +7,12 @@
 #include <string>
 #include "application.h"
 #include "rigid_body.h"
+#include "shape.h"
 #include "utils.h"
 #include "control.h"
 #include "render.h"
 #include "config.h"
+#include "vector2.h"
 
 constexpr unsigned sim_substeps(20);
 
@@ -19,8 +21,8 @@ Application::Application(SDL_Window* window, SDL_Renderer* renderer, double w, d
     m_renderer(renderer),
     m_width(w),
     m_height(h),
-    m_arrow_cursor(SDL_CreateSystemCursor(SDL_SystemCursor::SDL_SYSTEM_CURSOR_ARROW)),
-    m_crosshair_cursor(SDL_CreateSystemCursor(SDL_SystemCursor::SDL_SYSTEM_CURSOR_CROSSHAIR)),
+    m_arrow_cursor(SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW)),
+    m_crosshair_cursor(SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR)),
     m_exit_status(0),
     m_editor(m_renderer, SCENE_WIDTH / 100),
     frame_time(0),
@@ -202,7 +204,6 @@ void Application::parse_keybd_event(SDL_Event& keybd_event) {
             break;
         case SDLK_0:
             m_world.destroy_all();
-            // demo_collision();
             demo_stacking();
             break;
         case SDLK_9:
@@ -237,18 +238,32 @@ void Application::parse_keybd_event(SDL_Event& keybd_event) {
             break;
         case SDLK_b: 
             if (!m_ctrl.editor.active) {
-                m_world.add_ball(mouse, SCENE_WIDTH * 0.01);
+                RigidBodyDef body_def;
+                body_def.position = mouse;
+                Shape* ball_shape(create_circle(SCENE_WIDTH * 0.01));
+                m_world.create_body(body_def, ball_shape);
             }else {
-                m_world.add_ball(mouse, DIV, m_editor.get_body_type(), m_editor.get_enabled());
+                RigidBodyDef body_def;
+                body_def.position = mouse;
+                body_def.type = m_editor.get_body_type();
+                body_def.enabled = m_editor.get_enabled();
+                Shape* ball_shape(create_circle(DIV));
+                m_world.create_body(body_def, ball_shape);
             }
             break;
         case SDLK_r:
             if (!m_ctrl.editor.active) {
-                m_world.add_rectangle(mouse, SCENE_WIDTH * (0.025 + 0.001 * (rand() % 10)), 
-                        SCENE_WIDTH * (0.025 + 0.001 * (rand() % 10)));
+                RigidBodyDef body_def;
+                body_def.position = mouse;
+                Shape* box_shape(create_box(0.5 * SCENE_WIDTH * (0.025 + 0.001 * (rand() % 10)), 0.5 * SCENE_WIDTH * (0.025 + 0.001 * (rand() % 10))));
+                m_world.create_body(body_def, box_shape);
             }else {
-                m_world.add_rectangle(mouse, DIV * 4, DIV * 2, m_editor.get_body_type(),
-                        m_editor.get_enabled());
+                RigidBodyDef body_def;
+                body_def.position = mouse;
+                body_def.type = m_editor.get_body_type();
+                body_def.enabled = m_editor.get_enabled();
+                Shape* box_shape(create_box(DIV * 2, DIV));
+                m_world.create_body(body_def, box_shape);
             }
             break;
         case SDLK_UP:
@@ -389,20 +404,28 @@ void Application::parse_mouse_wheel_event(SDL_Event& wheel_event) {
 }
 
 void Application::demo_collision() {
-    m_world.add_rectangle({SCENE_WIDTH * 0.1, SCENE_HEIGHT * 0.5}, 0.25, 0.25, DYNAMIC, true, {3, 0});
+    RigidBodyDef body_def;
+    body_def.position = {SCENE_WIDTH * 0.1, SCENE_HEIGHT * 0.5};
+    body_def.velocity = {3, 0};
+    Shape* collider(create_box(0.125, 0.125));
+    m_world.create_body(body_def, collider);
+
+    body_def.velocity = vector2_zero;
     for (unsigned i(0); i < 400; ++i) {
-        m_world.add_ball({SCENE_WIDTH * 0.25 + 0.001 * (rand() % 500),
-                        SCENE_HEIGHT * 0.5 - 0.125 + 0.001 * (rand() % 250)}, 0.01);
+        body_def.position = {SCENE_WIDTH * 0.25 + 0.001 * (rand() % 500),
+                            SCENE_HEIGHT * 0.5 - 0.125 + 0.001 * (rand() % 250)};
+        Shape* ball(create_circle(0.01));
+        m_world.create_body(body_def, ball);
     }
 }
 
 void Application::demo_stacking() {
-    m_world.add_rectangle({SCENE_WIDTH * 0.5, 0.5}, 5, 0.5, STATIC);
-    for (int i(0); i < 5; ++i) {
-        for (unsigned j(0); j < 10; ++j) {
-            m_world.add_rectangle({SCENE_WIDTH * 0.5 - 0.5 * (i % 2 == 0 ? i : -i - 1), 1.5 + j}, 0.5, 0.5);
-        }
-    }
+    // m_world.add_rectangle({SCENE_WIDTH * 0.5, 0.5}, 5, 0.5, STATIC);
+    // for (int i(0); i < 5; ++i) {
+    //     for (unsigned j(0); j < 10; ++j) {
+    //         m_world.add_rectangle({SCENE_WIDTH * 0.5 - 0.5 * (i % 2 == 0 ? i : -i - 1), 1.5 + j}, 0.5, 0.5);
+    //     }
+    // }
     // const double center(SCENE_WIDTH * 0.5);
     // const double bside(0.05);
     // m_world.disable_walls();
@@ -501,24 +524,26 @@ void Application::show_placeholder_object() {
     ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
     bool node_open(ImGui::TreeNode("Name", "%p", obj));
     ImGui::TableSetColumnIndex(1);
-    ImGui::Text(obj->has_vertices() ?  "Rectangle" : "Ball");
+    ImGui::Text(obj->get_shape()->get_type() == POLYGON ?  "Box" : "Ball");
 
     if (node_open) {
-        const unsigned n_rows(10);
+        const unsigned n_rows(11);
         const char* fields[n_rows] = {
-            "Mass      [kg]", 
-            "Energy     [J]", 
-            "PosX       [m]", 
-            "PosY       [m]", 
-            "VelX     [m/s]", 
-            "VelY     [m/s]", 
-            "Theta    [deg]", 
-            "Omega  [rad/s]", 
+            "Mass       [kg]",
+            "Inertia [kg.m²]",
+            "Energy      [J]",
+            "PosX        [m]",
+            "PosY        [m]",
+            "VelX      [m/s]",
+            "VelY      [m/s]",
+            "Theta     [deg]",
+            "Omega   [rad/s]",
             "Type", 
             "IsEnabled"
         };
-        float values[8] = {
+        float values[9] = {
             (float)obj->get_mass(),
+            (float)obj->get_I(),
             (float)obj->energy(true),
             (float)obj->get_p().x,
             (float)obj->get_p().y,
@@ -545,18 +570,19 @@ void Application::show_placeholder_object() {
             switch (i) {
                 case 0:
                 case 1:
+                case 2:
                     ImGui::Text("%.3f", values[i]);
                     break;
-                case 2:
                 case 3:
-                case 6:
+                case 4:
+                case 7:
                     if (ImGui::InputFloat(fields[i], &values[i])) {
                         property_changed = true;
                     }
                     break;
-                case 4:
                 case 5:
-                case 7:
+                case 6:
+                case 8:
                     if (!obj->is_static()) {
                         if (ImGui::InputFloat(fields[i], &values[i])) {
                             property_changed = true;
@@ -565,21 +591,21 @@ void Application::show_placeholder_object() {
                         ImGui::Text("%.3f", values[i]);
                     }
                     break;
-                case 8:
+                case 9:
                     switch (obj->get_type()) {
                         case STATIC:
-                            ImGui::Text("static");
+                            ImGui::Text("STATIC");
                             break;
                         case KINEMATIC:
-                            ImGui::Text("kinematic");
+                            ImGui::Text("KINEMATIC");
                             break;
                         case DYNAMIC:
-                            ImGui::Text("dynamic");
+                            ImGui::Text("DYNAMIC");
                             break;
                     }
                     break;
-                case 9:
-                    ImGui::Text(obj->is_enabled() ? "true" : "false");
+                case 10:
+                    ImGui::Text(obj->is_enabled() ? "True" : "False");
                     break;
             }
 
@@ -588,10 +614,10 @@ void Application::show_placeholder_object() {
         }
 
         if (property_changed) {
-            obj->move(Vector2(values[2], values[3]) - obj->get_p());
-            obj->rotate(deg2rad(values[6]) - obj->get_theta());
-            obj->set_linear_vel(Vector2(values[4], values[5]));
-            obj->set_angular_vel(values[7]);
+            obj->move(Vector2(values[3], values[4]) - obj->get_p());
+            obj->rotate(deg2rad(values[7]) - obj->get_theta());
+            obj->set_linear_vel(Vector2(values[5], values[6]));
+            obj->set_angular_vel(values[8]);
         }
 
         ImGui::TreePop();

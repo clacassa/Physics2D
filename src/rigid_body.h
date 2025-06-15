@@ -6,10 +6,8 @@
 #include <deque>
 #include <vector>
 #include <string>
-#include "vector2.h"
 #include "shape.h"
-
-typedef std::vector<Vector2> Vertices;
+#include "vector2.h"
 
 enum BodyType {
     STATIC,
@@ -22,11 +20,23 @@ constexpr double steel_restitution(0.78 * 0.75); // Restitution is reduced for t
 constexpr double steel_static_friction(0.78);
 constexpr double steel_dynamic_friction(0.42);
 
+struct RigidBodyDef {
+    Vector2 position;
+    Vector2 velocity;
+    double rotation = 0;
+    double angular_velocity = 0;
+    double density = steel_density;
+    double restitution = steel_restitution;
+    BodyType type = DYNAMIC;
+    bool enabled = true;
+};
+
 class RigidBody {
 public:
     RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, BodyType type_, bool enabled_,
         Vertices verticies);
     RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, BodyType type_, bool enabled_);
+    RigidBody(const RigidBodyDef& def, Shape* shape);
     virtual ~RigidBody();
 
     void step(double dt);
@@ -44,7 +54,7 @@ public:
     double k_energy() const;
     double p_energy() const;
 
-    virtual void draw(SDL_Renderer* renderer) = 0;
+    void draw(SDL_Renderer* renderer);
     void draw_trace(SDL_Renderer* renderer, bool update_trace);
     void draw_bounding_box(SDL_Renderer* renderer);
     void draw_forces(SDL_Renderer* renderer) const;
@@ -69,15 +79,17 @@ public:
     inline bool is_static() const { return m_type == STATIC; }
     inline bool is_dynamic() const { return m_type == DYNAMIC; }
     inline bool is_enabled() const { return m_enabled; }
+    inline Shape* get_shape() const { return m_shape; }
+    inline ShapeType get_shape_type() const { return m_shape->get_type(); }
 
-    inline bool has_vertices() const { return !m_vertices.empty(); }
-    inline virtual std::vector<Vector2> get_vertices() const { return m_vertices; }
-    inline virtual double get_radius() const { return 0.0; }
-    inline AABB get_AABB() const { return m_aabb; }
+    // inline bool has_vertices() const { return !m_vertices.empty(); }
+    // inline virtual std::vector<Vector2> get_vertices() const { return m_vertices; }
+    // inline virtual double get_radius() const { return 0.0; }
+    // inline AABB get_AABB() const { return m_shape->get_aabb(); }
 
-    virtual void handle_wall_collisions() = 0;
-    virtual void update_bounding_box() = 0;
-    virtual bool contains_point(const Vector2 point) const = 0;
+    void handle_wall_collisions();
+    // virtual void update_bounding_box() = 0;
+    // virtual bool contains_point(const Vector2 point) const = 0;
 
 protected:
     // linear, x y axis
@@ -95,6 +107,7 @@ protected:
     double m_inv_mass;
     double m_inertia;
     double m_inv_inertia;
+    double m_density;
 
     /*
      * coefficient of restitution (COR, e)   e = 0.69 for glass, 0.78 for stainless steel
@@ -105,10 +118,11 @@ protected:
     BodyType m_type;
     bool m_enabled;
 
-    Vertices m_vertices;
-    AABB m_aabb;
+    // Vertices m_vertices;
+    // AABB m_aabb;
+    Shape* m_shape;
 
-    size_t max_track_length;
+    size_t max_track_length = 1e3;
     std::deque<Vector2> track;
     SDL_Color m_color;
 
@@ -116,40 +130,40 @@ protected:
 };
 
 
-class Ball : public RigidBody {
-public:
-    Ball(Vector2 vel, Vector2 pos, double m, double r_, BodyType type = DYNAMIC, bool enabled = true);
-    virtual ~Ball() {}
+// class Ball : public RigidBody {
+// public:
+//     Ball(Vector2 vel, Vector2 pos, double m, double r_, BodyType type = DYNAMIC, bool enabled = true);
+//     virtual ~Ball() {}
+//
+//     // A ball doesn't have any verticies
+//     // Vertices get_vertices() const override;
+//     // double get_radius() const override;
+//     void draw(SDL_Renderer* renderer) override;
+//     void handle_wall_collisions() override;
+//     // void update_bounding_box() override;
+//     // bool contains_point(const Vector2 point) const override;
+//
+// // private:
+// //     double r;
+// };
 
-    // A ball doesn't have any verticies
-    Vertices get_vertices() const override;
-    double get_radius() const override;
-    void draw(SDL_Renderer* renderer) override;
-    void handle_wall_collisions() override;
-    void update_bounding_box() override;
-    bool contains_point(const Vector2 point) const override;
+// class Rectangle : public RigidBody {
+// public:
+//     Rectangle(Vector2 vel, Vector2 pos, double m, double w_, double h_, Vertices verticies,
+//             BodyType type = DYNAMIC, bool enabled = true);
+//     virtual ~Rectangle() {}
+//
+//     void draw(SDL_Renderer* renderer) override;
+//     void handle_wall_collisions() override;
+//     // void update_bounding_box() override;
+//     // bool contains_point(const Vector2 point) const override;
+//
+// // private:
+// //     double w;
+// //     double h;
+// };
 
-private:
-    double r;
-};
-
-class Rectangle : public RigidBody {
-public:
-    Rectangle(Vector2 vel, Vector2 pos, double m, double w_, double h_, Vertices verticies, 
-            BodyType type = DYNAMIC, bool enabled = true);
-    virtual ~Rectangle() {}
-
-    void draw(SDL_Renderer* renderer) override;
-    void handle_wall_collisions() override;
-    void update_bounding_box() override;
-    bool contains_point(const Vector2 point) const override;
-
-private:
-    double w;
-    double h;
-};
-
-class Triangle : public RigidBody { 
+// class Triangle : public RigidBody { 
 // public:
 //     Triangle(Vector2 vel, Vector2 pos, double m, Vertices vertices, bool movable = true);
 //     virtual ~Triangle() {}
@@ -158,7 +172,7 @@ class Triangle : public RigidBody {
 //     void handle_wall_collisions() override;
 //     void update_bounding_box() override;
 //     bool contains_point(const Vector2 point) const override;
-};
+// };
 
 #endif /* RIGID_BODY_H */
 

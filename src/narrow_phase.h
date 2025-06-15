@@ -7,6 +7,7 @@
 
 struct Timer;
 class RigidBody;
+class Shape;
 
 struct Manifold {
     bool intersecting = false;
@@ -30,7 +31,9 @@ struct DistanceInfo {
  * @brief Computes the support point of an object in a given direction
  * @return 
  */
-Vector2 support(RigidBody* body, Vector2 d);
+// Vector2 support(RigidBody* body, Vector2 d);
+
+Vector2 support(const Shape* shape, const Vector2 d);
 
 /**
  * @brief Computes the support point of an object in a given direction,
@@ -40,14 +43,14 @@ Vector2 support(RigidBody* body, Vector2 d);
  * @param skip_me Point to ignore during the support calculation
  * @return 
  */
-Vector2 support(RigidBody* body, Vector2 d, Vector2 skip_me);
+// Vector2 support(RigidBody* body, Vector2 d, Vector2 skip_me);
 
-Manifold detect_collision(RigidBody* a, RigidBody* b, Timer& gjk, Timer& epa, Timer& clip);
+// Manifold detect_collision(RigidBody* a, RigidBody* b, Timer& gjk, Timer& epa, Timer& clip);
 
 // SAT
-Manifold collide_circle_circle(RigidBody* a, RigidBody* b);
-Manifold collide_circle_polygon(RigidBody* a, RigidBody* b);
-Manifold collide_polygon_polygon(RigidBody* a, RigidBody* b);
+Manifold collide_circle_circle(Shape* a, Shape* b);
+Manifold collide_circle_polygon(Shape* a, Shape* b);
+Manifold collide_polygon_polygon(Shape* a, Shape* b);
 
 /**
  * @brief Determines if two convex shapes are colliding, and computes the contact manifold.
@@ -55,7 +58,7 @@ Manifold collide_polygon_polygon(RigidBody* a, RigidBody* b);
  * and clipping for contact point(s) calculation.
  * @return The contact manifold, containing all the information needed to solve the collision.
  */
-Manifold collide_convex(RigidBody* a, RigidBody* b, Timer& gjk, Timer& epa, Timer& clip);
+Manifold collide_convex(Shape* a, Shape* b, Timer& gjk, Timer& epa, Timer& clip);
 
 /**
  * @brief Performs a proximity query: computes the euclidian distance between two convex shapes a and b, as well as their closest points from each other.
@@ -63,7 +66,7 @@ Manifold collide_convex(RigidBody* a, RigidBody* b, Timer& gjk, Timer& epa, Time
  * @param b Convex shape B
  * @return The proximity info, containing the distance and the closest points.
  */
-DistanceInfo ditance_convex(RigidBody* a, RigidBody* b);
+DistanceInfo ditance_convex(const Shape* a, const Shape* b);
 
 
 #endif /* NARROW_PHASE_H */

@@ -15,9 +15,9 @@ public:
     SweepAndPrune() : m_var_x(0), m_var_y(0) {}
     virtual ~SweepAndPrune() {}
 
-    void choose_axis(const std::vector<RigidBody*>& list);
-    std::vector<BodyPair> process(const std::vector<RigidBody*>& list);
-    inline void update_list(const std::vector<RigidBody*>& list) { m_list = list; }
+    void choose_axis();
+    std::vector<BodyPair> process();
+    void update_list(const std::vector<RigidBody*>& list);
 private:
     std::vector<RigidBody*> m_list;
     double m_var_x;

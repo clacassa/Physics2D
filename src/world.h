@@ -15,6 +15,7 @@ struct Settings;
 struct DistanceInfo;
 struct Manifold;
 class RigidBody;
+class Shape;
 
 class World {
 public:
@@ -24,10 +25,11 @@ public:
     void step(double dt, int steps, Settings& settings, bool perft = false);
     void render(SDL_Renderer* renderer, bool running, Settings& settings);
 
-    void add_ball(Vector2 pos, double radius, BodyType type = DYNAMIC, bool enabled = true,
-            Vector2 vel = {0, 0});
-    void add_rectangle(Vector2 pos, double width, double height, BodyType type = DYNAMIC,
-            bool enabled = true, Vector2 vel = {0, 0});
+    // void add_ball(Vector2 pos, double radius, BodyType type = DYNAMIC, bool enabled = true,
+    //         Vector2 vel = {0, 0});
+    // void add_rectangle(Vector2 pos, double width, double height, BodyType type = DYNAMIC,
+    //         bool enabled = true, Vector2 vel = {0, 0});
+    RigidBody* create_body(const RigidBodyDef& body_def, Shape* shape);
     void add_spring(Vector2 p1, Vector2 p2, Spring::DampingType damping, float stiffness);
 
     void destroy_body(RigidBody* body);

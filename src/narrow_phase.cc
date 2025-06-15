@@ -2,8 +2,10 @@
 #include <cassert>
 #include "narrow_phase.h"
 #include "rigid_body.h"
+#include "shape.h"
 #include "utils.h"
 #include "config.h"
+#include "vector2.h"
 
 namespace {
     // A 2D simplex (point, segment or triangle)
@@ -38,7 +40,7 @@ namespace {
      * @param b Convex shape B
      * @return Whether the shapes intersect or not.
      */
-    bool intersect_GJK(Simplex& s, SourcePoints& shape_points, RigidBody* a, RigidBody* b);
+    bool intersect_GJK(Simplex& s, SourcePoints& shape_points, Shape* a, Shape* b);
 
     /**
      * @brief Given a simplex, reduces it to its closest feature to the origin and finds the direction towards which it should be expanded in order to encompass the origin.
@@ -56,7 +58,7 @@ namespace {
      * @param shape_points The source points of A and B that were used to create the simplex
      * @param result The resulting information of the collision (normal, depth, contact points)
      */
-    void EPA(Simplex s, SourcePoints points, RigidBody* a, RigidBody* b, Manifold& result);
+    void EPA(Simplex s, SourcePoints points, Shape* a, Shape* b, Manifold& result);
 
     /**
      * @brief Given a simplex, finds its closest edge to the origin.
@@ -73,7 +75,7 @@ namespace {
      * @param manifold Partial manifold containing the normal and depth of the collision
      * @return The collision information completed with all the contact points.
      */
-    Manifold get_contact_points(RigidBody* a, RigidBody* b, const Manifold& manifold);
+    Manifold get_contact_points(Shape* a, Shape* b, const Manifold& manifold);
 
     /**
      * @brief Computes the closest feature (vertex and edge) of a body to another implied in a collision.
@@ -81,7 +83,7 @@ namespace {
      * @param n The collision normal, gives the direction of the collision
      * @return The closest feature of the body in the direction of the collision.
      */
-    Edge closest_feature(RigidBody* body, Vector2 n);
+    Edge closest_feature(Shape* body, Vector2 n);
 
     std::vector<Vector2> clip_features(Vector2 v1, Vector2 v2, Vector2 edge, double threshold);
 
@@ -89,7 +91,7 @@ namespace {
      * @brief Computes the distance between two non intersecting convex shapes.
      * @return The distance between the two shapes.
      */
-    double distance_GJK(Simplex& s, SourcePoints& points, RigidBody* a, RigidBody* b);
+    double distance_GJK(Simplex& s, SourcePoints& points, const Shape* a, const Shape* b);
 
     /**
      * @brief Finds the closest point to the origin on the edge formed by v1 and v2.
@@ -109,90 +111,108 @@ namespace {
 }
 
 
-Vector2 support(RigidBody* body, Vector2 d) {
+// Vector2 support(RigidBody* body, Vector2 d) {
+//     Vector2 support;
+//     if (body->has_vertices()) {
+//         double max(-INT_MAX);
+//         for (auto v : body->get_vertices()) {
+//             double projection(dot2(v, d));
+//             if (projection >= max) {
+//                 max = projection;
+//                 support = v;
+//             }
+//         }
+//     }else {
+//         support = body->get_p() + d.normalized() * body->get_radius();
+//     }
+//
+//     return support;
+// }
+
+Vector2 support(const Shape* shape, const Vector2 d) {
     Vector2 support;
-    if (body->has_vertices()) {
+    if (shape->get_type() == CIRCLE) {
+        support = shape->get_centroid() + d.normalized() * shape->get_radius();
+    }else {
         double max(-INT_MAX);
-        for (auto v : body->get_vertices()) {
-            double projection(dot2(v, d));
-            if (projection >= max) {
-                max = projection;
+        for (auto v : shape->get_vertices()) {
+            double proj(dot2(v, d));
+            if (proj >= max) {
+                max = proj;
                 support = v;
             }
         }
-    }else {
-        support = body->get_p() + d.normalized() * body->get_radius();
     }
 
     return support;
 }
 
-Vector2 support(RigidBody* body, Vector2 d, Vector2 skip_me) {
-    Vector2 support;
-    if (body->has_vertices()) {
-        double max(-INT_MAX);
-        for (auto v : body->get_vertices()) {
-            if (v == skip_me) {
-                continue; 
-            }
+// Vector2 support(RigidBody* body, Vector2 d, Vector2 skip_me) {
+//     Vector2 support;
+//     if (body->has_vertices()) {
+//         double max(-INT_MAX);
+//         for (auto v : body->get_vertices()) {
+//             if (v == skip_me) {
+//                 continue;
+//             }
+//
+//             double projection(dot2(v, d));
+//             if (projection >= max) {
+//                 max = projection;
+//                 support = v;
+//             }
+//         }
+//     }else {
+//         support = body->get_p() + d.normalized() * body->get_radius();
+//     }
+//
+//     return support;
+// }
 
-            double projection(dot2(v, d));
-            if (projection >= max) {
-                max = projection;
-                support = v;
-            }
-        }
-    }else {
-        support = body->get_p() + d.normalized() * body->get_radius();
-    }
 
-    return support;
-}
+// Manifold detect_collision(RigidBody* a, RigidBody* b, Timer& gjk, Timer& epa, Timer& clip) {
+//     Manifold result;
+//     if (!a->is_dynamic() && !b->is_dynamic()) {
+//         return result;
+//     }
+// #ifdef SAT
+//     const bool a_is_polygon(a->has_vertices());
+//     const bool b_is_polygon(b->has_vertices());
+//
+//     if (!a_is_polygon) {
+//         if (!b_is_polygon) {
+//             result = collide_circle_circle(a, b);
+//         }else {
+//             // result.intersecting = collide_circle_polygon(a, b, result);
+//             result = collide_convex(a, b, gjk, epa, clip);
+//         }
+//     }else if (!b_is_polygon) {
+//         // result.intersecting = collide_circle_polygon(b, a, result);
+//         // result.normal *= -1;
+//         result = collide_convex(a, b, gjk, epa, clip);
+//     }else {
+// # ifdef GJK_EPA
+//         result = collide_convex(a, b, gjk, epa, clip);
+// # else
+//         result = collide_polygon_polygon(a, b);
+// # endif /* GJK_EPA */
+//     }
+// #else
+// # ifdef GJK_EPA
+//     result = collide_convex(a, b, gjk_time, epa_time);
+// # endif /* GJK_EPA */
+// #endif /* SAT */
+//     return result;
+// }
 
-
-Manifold detect_collision(RigidBody* a, RigidBody* b, Timer& gjk, Timer& epa, Timer& clip) {
-    Manifold result;
-    if (!a->is_dynamic() && !b->is_dynamic()) {
-        return result;
-    }
-#ifdef SAT
-    const bool a_is_polygon(a->has_vertices());
-    const bool b_is_polygon(b->has_vertices());
-
-    if (!a_is_polygon) {
-        if (!b_is_polygon) {
-            result = collide_circle_circle(a, b);
-        }else {
-            // result.intersecting = collide_circle_polygon(a, b, result);
-            result = collide_convex(a, b, gjk, epa, clip);
-        }
-    }else if (!b_is_polygon) {
-        // result.intersecting = collide_circle_polygon(b, a, result);
-        // result.normal *= -1;
-        result = collide_convex(a, b, gjk, epa, clip);
-    }else { 
-# ifdef GJK_EPA
-        result = collide_convex(a, b, gjk, epa, clip);
-# else
-        result = collide_polygon_polygon(a, b);
-# endif /* GJK_EPA */
-    }
-#else
-# ifdef GJK_EPA
-    result = collide_convex(a, b, gjk_time, epa_time);
-# endif /* GJK_EPA */
-#endif /* SAT */
-    return result;
-}
-
-Manifold collide_circle_circle(RigidBody* a, RigidBody* b) {
+Manifold collide_circle_circle(Shape* a, Shape* b) {
     Manifold result;
     result.intersecting = false;
 
     double r_a(a->get_radius());
     double r_b(b->get_radius());
 
-    Vector2 axis(b->get_p() - a->get_p());
+    Vector2 axis(b->get_centroid() - a->get_centroid());
     double distance(axis.norm());
 
     double separation(distance - (r_a + r_b));
@@ -207,18 +227,19 @@ Manifold collide_circle_circle(RigidBody* a, RigidBody* b) {
         }
 
         result.depth = -separation;
-        result.contact_points[0] = a->get_p() + result.normal * r_a;
+        result.contact_points[0] = a->get_centroid() + result.normal * r_a;
         result.count = 1;
     }
 
     return result;
 }
 
-Manifold collide_circle_polygon(RigidBody* a, RigidBody* b) {
+Manifold collide_circle_polygon(Shape* a, Shape* b) {
     Manifold result;
 
     auto vertices(b->get_vertices());
     const unsigned vertices_count(vertices.size());
+    const Vector2 centroid_a(a->get_centroid());
 
     result.depth = INT_MAX;
 
@@ -228,7 +249,7 @@ Manifold collide_circle_polygon(RigidBody* a, RigidBody* b) {
         Vector2 B(vertices[(i + 1) % vertices_count]);
         Vector2 edge(B - A);
         Vector2 normal(edge.normal());
-        Vector2 u(a->get_p() - normal * a->get_radius() - vertices[i]);
+        Vector2 u(centroid_a - normal * a->get_radius() - vertices[i]);
 
         double support_dist(dot2(u, normal));
 
@@ -237,7 +258,7 @@ Manifold collide_circle_polygon(RigidBody* a, RigidBody* b) {
             break;
         }
 
-        double projection(proj2(a->get_p(), A, edge).norm());
+        double projection(proj2(centroid_a, A, edge).norm());
 
         if (projection < edge.norm() && dot2(u, edge) > 0) {
             if (b->contains_point(u + A)) {
@@ -250,19 +271,19 @@ Manifold collide_circle_polygon(RigidBody* a, RigidBody* b) {
             }
         }else {
             if (a->contains_point(A)) {
-                double depth(a->get_radius() - (A - a->get_p()).norm());
+                double depth(a->get_radius() - (A - centroid_a).norm());
 
                 if (depth < result.depth) {
-                    result.normal = (A - a->get_p()).normalized();
+                    result.normal = (A - centroid_a).normalized();
                     result.depth = depth;
                     result.contact_points[0] = A;
                     result.count = 1;
                 }
             }else if (a->contains_point(B)) {
-                double depth(a->get_radius() - (B - a->get_p()).norm());
+                double depth(a->get_radius() - (B - centroid_a).norm());
 
                 if (depth < result.depth) {
-                    result.normal = (B - a->get_p()).normalized();
+                    result.normal = (B - centroid_a).normalized();
                     result.depth = depth;
                     result.contact_points[0] = B;
                     result.count = 1;
@@ -274,7 +295,7 @@ Manifold collide_circle_polygon(RigidBody* a, RigidBody* b) {
     return result;
 }
 
-Manifold collide_polygon_polygon(RigidBody* a, RigidBody* b) {
+Manifold collide_polygon_polygon(Shape* a, Shape* b) {
     Manifold result;
 
     auto a_vertices(a->get_vertices());
@@ -357,7 +378,7 @@ Manifold collide_polygon_polygon(RigidBody* a, RigidBody* b) {
     return result;
 }
 
-Manifold collide_convex(RigidBody* a, RigidBody* b, Timer& gjk, Timer& epa, Timer& clip) {
+Manifold collide_convex(Shape* a, Shape* b, Timer& gjk, Timer& epa, Timer& clip) {
     Manifold result;
     Simplex s;
     SourcePoints points;
@@ -383,7 +404,7 @@ Manifold collide_convex(RigidBody* a, RigidBody* b, Timer& gjk, Timer& epa, Time
 }
 
 
-DistanceInfo ditance_convex(RigidBody* a, RigidBody* b) {
+DistanceInfo ditance_convex(const Shape* a, const Shape* b) {
     DistanceInfo result;
 
     Simplex s;
@@ -397,7 +418,7 @@ DistanceInfo ditance_convex(RigidBody* a, RigidBody* b) {
 
 namespace {
 
-    bool intersect_GJK(Simplex& s, SourcePoints& shape_points, RigidBody* a, RigidBody* b) {
+    bool intersect_GJK(Simplex& s, SourcePoints& shape_points, Shape* a, Shape* b) {
         Vector2 axis(1, 0);
         Vector2 S(support(a, axis) - support(b, -axis));
         s.push_back(S);
@@ -462,7 +483,7 @@ namespace {
         return false;
     }
 
-    void EPA(Simplex s, SourcePoints points, RigidBody* a, RigidBody* b, Manifold& result) {
+    void EPA(Simplex s, SourcePoints points, Shape* a, Shape* b, Manifold& result) {
         // Determine the winding of the simplex
         double winding(0);
         for (size_t i(0); i < s.size() - 1; ++i) {
@@ -523,19 +544,19 @@ namespace {
     }
 
 
-    Manifold get_contact_points(RigidBody* a, RigidBody* b, const Manifold& manifold) {
+    Manifold get_contact_points(Shape* a, Shape* b, const Manifold& manifold) {
         Manifold result(manifold);
 
         const Vector2 n(manifold.normal);
 
         // Curved shapes
-        if (!a->has_vertices()) {
+        if (a->get_type() != POLYGON) {
             result.contact_points[0] = support(a, n);
             result.count = 1;
             return result;
         }
 
-        if (!b->has_vertices()) {
+        if (b->get_type() != POLYGON) {
             result.contact_points[0] = support(b, -n);
             result.count = 1;
             return result;
@@ -587,8 +608,8 @@ namespace {
         return result;
     }
 
-    Edge closest_feature(RigidBody* body, Vector2 n) {
-        const Vertices vertices(body->get_vertices());
+    Edge closest_feature(Shape* shape, Vector2 n) {
+        const Vertices vertices(shape->get_vertices());
         const unsigned count(vertices.size());
         unsigned index(0);
 
@@ -640,8 +661,8 @@ namespace {
     }
 
 
-    double distance_GJK(Simplex& s, SourcePoints& points, RigidBody* a, RigidBody* b) {
-        Vector2 D(a->get_p() - b->get_p());
+    double distance_GJK(Simplex& s, SourcePoints& points, const Shape* a, const Shape* b) {
+        Vector2 D(a->get_centroid() - b->get_centroid());
 
         Vector2 supp_a1(support(a, D));
         Vector2 supp_b1(support(b, -D));

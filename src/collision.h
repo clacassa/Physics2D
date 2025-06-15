@@ -1,9 +1,6 @@
 #ifndef COLLISION_H
 #define COLLISION_H
 
-#include <vector>
-#include <array>
-#include "vector2.h"
 
 struct Manifold;
 class RigidBody;

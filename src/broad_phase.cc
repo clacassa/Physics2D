@@ -2,8 +2,9 @@
 #include <algorithm>
 #include "broad_phase.h"
 #include "rigid_body.h"
+#include "shape.h"
 
-std::vector<BodyPair> SweepAndPrune::process(const std::vector<RigidBody*>& list) {
+std::vector<BodyPair> SweepAndPrune::process() {
     std::vector<BodyPair> possible_collisions;
     std::vector<RigidBody*> active_intervall;
 
@@ -16,7 +17,7 @@ std::vector<BodyPair> SweepAndPrune::process(const std::vector<RigidBody*>& list
             }
 
             for (unsigned j(0); j < active_intervall.size(); ++j) {
-                if (m_list[i]->get_AABB().min.x > active_intervall[j]->get_AABB().max.x) {
+                if (m_list[i]->get_shape()->get_aabb().min.x > active_intervall[j]->get_shape()->get_aabb().max.x) {
                     active_intervall.erase(active_intervall.begin() +j);
                     --j;
                 }else {
@@ -34,7 +35,7 @@ std::vector<BodyPair> SweepAndPrune::process(const std::vector<RigidBody*>& list
             }
                 
             for (unsigned j(0); j < active_intervall.size(); ++j) {
-                if (m_list[i]->get_AABB().min.y > active_intervall[j]->get_AABB().max.y) {
+                if (m_list[i]->get_shape()->get_aabb().min.y > active_intervall[j]->get_shape()->get_aabb().max.y) {
                     active_intervall.erase(active_intervall.begin() +j);
                     --j;
                 }else {
@@ -48,18 +49,22 @@ std::vector<BodyPair> SweepAndPrune::process(const std::vector<RigidBody*>& list
     return possible_collisions;
 }
 
-void SweepAndPrune::choose_axis(const std::vector<RigidBody*>& list) {
+void SweepAndPrune::update_list(const std::vector<RigidBody*>& list) {
+    m_list = list;
+}
+
+void SweepAndPrune::choose_axis() {
     m_var_x = 0;
     m_var_y = 0;
 
     double sum_x(0), sum_y(0);
-    for (auto body : list) {
+    for (auto body : m_list) {
         sum_x += body->get_p().x;
         sum_y += body->get_p().y;
     }
-    double mean_x(sum_x / list.size());
-    double mean_y(sum_y / list.size());
-    for (auto body : list) {
+    double mean_x(sum_x / m_list.size());
+    double mean_y(sum_y / m_list.size());
+    for (auto body : m_list) {
         m_var_x += pow(body->get_p().x - mean_x, 2);
         m_var_y += pow(body->get_p().y - mean_y, 2);
     }
@@ -67,13 +72,13 @@ void SweepAndPrune::choose_axis(const std::vector<RigidBody*>& list) {
 
 void SweepAndPrune::sort_ascending_x(std::vector<RigidBody*>& list) {
     std::sort(list.begin(), list.end(), [=](RigidBody* a, RigidBody* b)->bool {
-        return a->get_AABB().min.x < b->get_AABB().min.x;
+        return a->get_shape()->get_aabb().min.x < b->get_shape()->get_aabb().min.x;
     }); 
 }
 
 void SweepAndPrune::sort_ascending_y(std::vector<RigidBody*>& list) {
     std::sort(list.begin(), list.end(), [=](RigidBody* a, RigidBody* b)->bool {
-        return a->get_AABB().min.y < b->get_AABB().min.y;
+        return a->get_shape()->get_aabb().min.y < b->get_shape()->get_aabb().min.y;
     }); 
 }
 

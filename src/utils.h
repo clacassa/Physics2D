@@ -1,10 +1,7 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#include <SDL_render.h>
-#include <SDL_timer.h>
 #include <string>
-#include <vector>
 
 /**
  * @brief Truncate a floating point value

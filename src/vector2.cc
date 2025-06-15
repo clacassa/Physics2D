@@ -19,10 +19,6 @@ Vector2 Vector2::normalized() const {
     return {x / m_norm, y / m_norm};
 }
 
-Vector2 Vector2::rotated(const double alpha) const {
-    return {x * cos(alpha) + y * sin(alpha), x * sin(alpha) - y * cos(alpha)};
-}
-
 const Vector2 Vector2::operator+(const Vector2& v) const {
     return Vector2{x + v.x, y + v.y};
 }
@@ -87,7 +83,7 @@ double cross2(const Vector2 a, const Vector2 b) {
     return a.x * b.y - a.y * b.x;
 }
 
-Vector3 cross(const Vector3 a, const Vector3 b) {
+Vector3 cross3(const Vector3 a, const Vector3 b) {
     return Vector3{a.y * b.z - a.z * b.y,
                    a.z * b.x - a.x * b.z,
                    a.x * b.y - a.y * b.x};

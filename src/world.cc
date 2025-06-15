@@ -1,6 +1,8 @@
+#include <SDL_hints.h>
 #include <iostream>
 #include "world.h"
 #include "rigid_body.h"
+#include "shape.h"
 #include "broad_phase.h"
 #include "narrow_phase.h"
 #include "collision.h"
@@ -28,7 +30,7 @@ World::~World() {
 
 void World::step(double dt, int substeps, Settings& settings, bool perft) {
     if (perft && body_count < 250) {
-        add_ball({SCENE_WIDTH/2.0, SCENE_HEIGHT/2.0}, 0.1, DYNAMIC, true, {1, 0});
+        // add_ball({SCENE_WIDTH/2.0, SCENE_HEIGHT/2.0}, 0.1, DYNAMIC, true, {1, 0});
     }
 
     m_profile.reset();
@@ -41,8 +43,8 @@ void World::step(double dt, int substeps, Settings& settings, bool perft) {
 
 #ifdef SWEEP_AND_PRUNE
     pairs_timer.reset();
-    m_sap.choose_axis(m_bodies);
-    const auto pairs(m_sap.process(m_bodies));
+    m_sap.choose_axis();
+    const auto pairs(m_sap.process());
     m_profile.pairs = pairs_timer.get_microseconds();
     m_profile.broad_phase = m_profile.pairs;
 #endif
@@ -60,7 +62,7 @@ void World::step(double dt, int substeps, Settings& settings, bool perft) {
             if (body->is_enabled()) {
                 Timer ode_timer;
                 body->step(dt / substeps);
-                body->update_bounding_box();
+                // body->update_bounding_box();
                 m_profile.ode += ode_timer.get_microseconds();
             }
         }
@@ -70,7 +72,9 @@ void World::step(double dt, int substeps, Settings& settings, bool perft) {
             RigidBody* b(pair[1]);
 
             AABB_timer.reset();
-            bool broad_overlap(AABB_overlap(a->get_AABB(), b->get_AABB()));
+            const Shape* shape_a(a->get_shape());
+            const Shape* shape_b(b->get_shape());
+            bool broad_overlap(AABB_overlap(shape_a->get_aabb(), shape_b->get_aabb()));
             m_profile.AABBs += AABB_timer.get_microseconds();
             m_profile.broad_phase += AABB_timer.get_microseconds();
 
@@ -102,7 +106,7 @@ void World::step(double dt, int substeps, Settings& settings, bool perft) {
                         b->colorize({0, 255, 128, 255});
                     }
                 }else if (i > substeps - 2) {
-                    m_proxys.push_back(new DistanceInfo(ditance_convex(a, b)));
+                    m_proxys.push_back(new DistanceInfo(ditance_convex(shape_a, shape_b)));
                 }
             }            
         }
@@ -180,38 +184,49 @@ void World::render(SDL_Renderer* renderer, bool running, Settings& settings) {
     }
 }
 
-void World::add_ball(Vector2 pos, double radius, BodyType type, bool enabled,
-        Vector2 vel) {
-    const double depth(radius);
-    const double volume(PI * radius * radius * depth);
-    m_bodies.push_back(new Ball(vel, pos, steel_density * volume, radius, type, enabled));
+// void World::add_ball(Vector2 pos, double radius, BodyType type, bool enabled,
+//         Vector2 vel) {
+//     const double depth(radius);
+//     const double volume(PI * radius * radius * depth);
+//     m_bodies.push_back(new Ball(vel, pos, steel_density * volume, radius, type, enabled));
+//     ++body_count;
+//
+//     m_sap.update_list(m_bodies);
+// }
+
+// void World::add_rectangle(Vector2 p, double w, double h, BodyType type, bool enabled, Vector2 v) {
+//     const Vertices vertices{
+//         {p.x - w / 2, p.y + h / 2},
+//         {p.x - w / 2, p.y - h / 2},
+//         {p.x + w / 2, p.y - h / 2},
+//         {p.x + w / 2, p.y + h / 2}
+//     };
+//     m_bodies.push_back(new Rectangle(v, p, steel_density * w * h * h, w, h, vertices, type, enabled));
+//     ++body_count;
+//
+//     m_sap.update_list(m_bodies);
+// }
+
+RigidBody* World::create_body(const RigidBodyDef& body_def, Shape* shape) {
+    RigidBody* body;
+    body = new RigidBody(body_def, shape);
+
+    m_bodies.push_back(body);
+    m_sap.update_list(m_bodies);
     ++body_count;
 
-    m_sap.update_list(m_bodies);
-}
-
-void World::add_rectangle(Vector2 p, double w, double h, BodyType type, bool enabled, Vector2 v) {
-    const Vertices vertices{
-        {p.x - w / 2, p.y + h / 2},
-        {p.x - w / 2, p.y - h / 2},
-        {p.x + w / 2, p.y - h / 2},
-        {p.x + w / 2, p.y + h / 2}
-    };
-    m_bodies.push_back(new Rectangle(v, p, steel_density * w * h * h, w, h, vertices, type, enabled));
-    ++body_count;
-
-    m_sap.update_list(m_bodies);
+    return body;
 }
 
 void World::add_spring(Vector2 p1, Vector2 p2, Spring::DampingType damping, float stiffness) {
     RigidBody* a(nullptr);
     RigidBody* b(nullptr);
     for (auto body : m_bodies) {
-        if (body->contains_point(p1)) {
+        if (body->get_shape()->contains_point(p1)) {
             a = body;
             continue;
         }
-        if (body->contains_point(p2)) {
+        if (body->get_shape()->contains_point(p2)) {
             b = body;
             continue;
         }
@@ -294,9 +309,6 @@ std::string World::dump_selected_body() const {
     std::string body_data;
     if (body_count > 0) {
         body_data = m_bodies[focus]->dump(gravity_enabled);
-#ifdef DEBUG
-        body_data += "\nFriction: " + m_bodies[focus]->get_friction();
-#endif
     }
     return body_data;
 }
@@ -344,7 +356,7 @@ void World::focus_on_position(Vector2 p) {
         m_bodies[focus]->reset_color();
     }
     for (size_t i(0); i < body_count; ++i) {
-        if (m_bodies[i]->contains_point(p)) {
+        if (m_bodies[i]->get_shape()->contains_point(p)) {
             focus = i;
             m_bodies[i]->colorize(focus_color);
             break;
@@ -374,19 +386,21 @@ void World::apply_forces() {
 Manifold World::collide(RigidBody* body_a, RigidBody* body_b) {
     Manifold result;
 
-    const bool body_a_polygon(body_a->has_vertices());
-    const bool body_b_polygon(body_b->has_vertices());
+    Shape* shape_a(body_a->get_shape());
+    Shape* shape_b(body_b->get_shape());
+    const ShapeType shape_type_a(shape_a->get_type());
+    const ShapeType shape_type_b(shape_b->get_type());
 
-    if (body_a_polygon || body_b_polygon) {
+    if (shape_type_a == POLYGON || shape_type_b == POLYGON) {
         Timer gjk, epa, clip;
 
-        result = collide_convex(body_a, body_b, gjk, epa, clip);
+        result = collide_convex(shape_a, shape_b, gjk, epa, clip);
 
         m_profile.gjk_collide += gjk.get_microseconds();
         m_profile.epa += epa.get_microseconds();
         m_profile.clip += clip.get_microseconds();
     }else {
-        result = collide_circle_circle(body_a, body_b);
+        result = collide_circle_circle(shape_a, shape_b);
     }
 
     return result;

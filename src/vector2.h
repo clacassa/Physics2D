@@ -11,7 +11,6 @@ struct Vector2 {
     double norm() const;
     Vector2 normal() const;
     Vector2 normalized() const;
-    Vector2 rotated(const double alpha) const;
 
     const Vector2 operator+(const Vector2& v) const;
     const Vector2 operator-(const Vector2& v) const;
@@ -30,7 +29,10 @@ struct Vector2 {
     bool operator!=(const Vector2& v) const;
 };
 
-const Vector2 vector2_zero{0, 0};
+const Vector2 vector2_zero(0, 0);
+const Vector2 vector2_x(1, 0);
+const Vector2 vector2_y(0, 1);
+const Vector2 vector2_xy(1, 1);
 
 struct Vector3 {
     double x;
@@ -48,7 +50,7 @@ double dot2(const Vector2 a, const Vector2 b);
 double dot3(const Vector3 a, const Vector3 b);
 // a x b 
 double cross2(const Vector2 a, const Vector2 b);
-Vector3 cross(const Vector3 a, const Vector3 b);
+Vector3 cross3(const Vector3 a, const Vector3 b);
 // Triple product a x (b x c)
 Vector2 triple_product(const Vector2 a, const Vector2 b, const Vector2 c);
 // Orthogonal projection of A on v with B a point on v

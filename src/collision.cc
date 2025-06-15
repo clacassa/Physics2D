@@ -2,7 +2,6 @@
 #include <cmath>
 #include <algorithm>
 #include <array>
-#include <climits>
 #include <cassert>
 #include "collision.h"
 #include "narrow_phase.h"
@@ -24,12 +23,12 @@ void solve_collision(RigidBody* a, RigidBody* b, const Manifold& collision) {
         Vector2 ra(p - a->get_p());
         Vector3 ra_3(ra.x, ra.y, 0);
         Vector3 wa_3(0, 0, a->get_omega());
-        Vector2 v_pa(a->get_v() + Vector2(cross(wa_3, ra_3).x, cross(wa_3, ra_3).y));
+        Vector2 v_pa(a->get_v() + Vector2(cross3(wa_3, ra_3).x, cross3(wa_3, ra_3).y));
 
         Vector2 rb(p - b->get_p());
         Vector3 rb_3(rb.x, rb.y, 0);
         Vector3 wb_3(0, 0, b->get_omega());
-        Vector2 v_pb(b->get_v() + Vector2(cross(wb_3, rb_3).x, cross(wb_3, rb_3).y));
+        Vector2 v_pb(b->get_v() + Vector2(cross3(wb_3, rb_3).x, cross3(wb_3, rb_3).y));
 
         Vector2 v_r(v_pb - v_pa);
 
@@ -113,7 +112,7 @@ void solve_wall_collision(RigidBody* body, const Manifold& collision) {
         Vector2 r(p - body->get_p());
         Vector3 r_3(r.x, r.y, 0);
         Vector3 w_3(0, 0, body->get_omega());
-        Vector2 v_p(body->get_v() + Vector2(cross(w_3, r_3).x, cross(w_3, r_3).y));
+        Vector2 v_p(body->get_v() + Vector2(cross3(w_3, r_3).x, cross3(w_3, r_3).y));
 
         Vector2 v_r(-v_p);
 

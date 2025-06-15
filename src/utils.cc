@@ -3,8 +3,8 @@
 #include <limits>
 #include <sstream>
 #include <iomanip>
+#include <SDL_timer.h>
 #include "utils.h"
-#include "render.h"
 #include "config.h"
 
 /* https://stackoverflow.com/questions/41294368/truncating-a-double-floating-point-at-a-certain-number-of-digits
