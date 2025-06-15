@@ -1,6 +1,13 @@
 #ifndef VECTOR2_H
 #define VECTOR2_H
 
+#include <cmath>
+
+constexpr double PI(3.14159265);
+
+double deg2rad(const double deg_angle);
+double rad2deg(const double rad_angle);
+
 struct Vector2 {
     double x;
     double y;
@@ -33,6 +40,10 @@ const Vector2 vector2_zero(0, 0);
 const Vector2 vector2_x(1, 0);
 const Vector2 vector2_y(0, 1);
 const Vector2 vector2_xy(1, 1);
+const Vector2 vector2_q1(cos(0.25 * PI), sin(0.25 * PI));
+const Vector2 vector2_q2(cos(0.75 * PI), sin(0.75 * PI));
+const Vector2 vector2_q3(-vector2_q1);
+const Vector2 vector2_q4(-vector2_q2);
 
 struct Vector3 {
     double x;

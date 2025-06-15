@@ -1,6 +1,14 @@
 #include <cmath>
 #include "vector2.h"
 
+double deg2rad(const double deg_angle) {
+    return deg_angle * PI / 180.0;
+}
+
+double rad2deg(const double rad_angle) {
+    return rad_angle * 180.0 / PI;
+}
+
 double Vector2::norm() const {
     return sqrt(x * x + y * y);
 }

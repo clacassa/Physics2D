@@ -9,7 +9,7 @@
 #include "config.h"
 #include "vector2.h"
 
-RigidBody::RigidBody(const RigidBodyDef& def, Shape* shape, const size_t id)
+RigidBody::RigidBody(const RigidBodyDef& def, const Shape& shape, const size_t id)
 :
     m_pos(def.position),
     m_vel(def.velocity),
@@ -19,9 +19,57 @@ RigidBody::RigidBody(const RigidBodyDef& def, Shape* shape, const size_t id)
     m_restitution(def.restitution),
     m_type(def.type),
     m_enabled(def.enabled),
-    m_shape(shape),
+    // m_shape(shape),
     m_id(id)
 {
+    switch (shape.get_type()) {
+        case CIRCLE:
+            m_shape = new Circle(shape.get_radius());
+            break;
+        case POLYGON:
+            m_shape = new Polygon(shape.get_vertices());
+            break;
+    }
+
+    const MassProperties mp(m_shape->compute_mass_properties(m_density));
+    m_mass = mp.mass;
+    m_inertia = mp.inertia;
+
+    if (m_type != DYNAMIC) {
+        m_inv_mass = 0;
+        m_inv_inertia = 0;
+    }else {
+        m_inv_mass = 1.0 / m_mass;
+        m_inv_inertia = 1.0 / m_inertia;
+    }
+    if (m_type == STATIC) {
+        m_vel = vector2_zero;
+        m_omega = 0;
+    }
+
+    m_shape->transform(m_pos, m_theta);
+    reset_color();
+}
+
+RigidBody::RigidBody(const Shape& shape, const size_t id)
+:
+    m_theta(0),
+    m_omega(0),
+    m_density(steel_density),
+    m_restitution(steel_restitution),
+    m_type(DYNAMIC),
+    m_enabled(true),
+    m_id(id)
+{
+    switch (shape.get_type()) {
+        case CIRCLE:
+            m_shape = new Circle(shape.get_radius());
+            break;
+        case POLYGON:
+            m_shape = new Polygon(shape.get_vertices());
+            break;
+    }
+
     const MassProperties mp(m_shape->compute_mass_properties(m_density));
     m_mass = mp.mass;
     m_inertia = mp.inertia;
@@ -170,62 +218,68 @@ void RigidBody::draw(SDL_Renderer* renderer) {
         }
     }
 
+    SDL_Color color;
+    color.r = m_color.r * 0.5;
+    color.g = m_color.g * 0.5;
+    color.b = m_color.b * 0.5;
+    color.a = m_color.a * 0.5;
+
     if (m_shape->get_type() == CIRCLE) {
         const double r(m_shape->get_radius());
 
         if (m_type != STATIC && m_enabled) {
-            SDL_SetRenderDrawColor(renderer, 0.5 * m_color.r, 0.5 * m_color.g, 0.5 * m_color.b, 0.5*m_color.a);
-            render_circle_fill_raster(renderer, m_pos, r);
-            SDL_SetRenderDrawColor(renderer, m_color.r, m_color.g, m_color.b, m_color.a);
-            render_circle(renderer, m_pos, r);
-            render_line(renderer, m_pos, {m_pos.x + r * cos(m_theta), m_pos.y + r * sin(m_theta)});
+            m_shape->draw(renderer, color, true);
+            color = m_color;
+            m_shape->draw(renderer, color, false);
+
+            const Vector2 indicator(m_pos.x + r * cos(m_theta), m_pos.y + r * sin(m_theta));
+            render_line(renderer, m_pos, indicator);
         }else {
             if (m_enabled) {
-                SDL_SetRenderDrawColor(renderer, m_color.r, m_color.g, m_color.b, m_color.a);
+                color = m_color;
+                // SDL_SetRenderDrawColor(renderer, m_color.r, m_color.g, m_color.b, m_color.a);
             }else {
-                SDL_SetRenderDrawColor(renderer, m_color.r, m_color.g, m_color.b, m_color.a * 0.5);
+                color = m_color;
+                color.a *= 0.5;
+                // SDL_SetRenderDrawColor(renderer, m_color.r, m_color.g, m_color.b, m_color.a * 0.5);
             }
-            render_circle(renderer, m_pos, r);
+            m_shape->draw(renderer, color, false);
             if (m_type == STATIC) {
                 SDL_SetRenderDrawColor(renderer, m_color.r, m_color.g, m_color.b, m_color.a * 0.5);
-                render_line(renderer, m_pos, {m_pos.x + r * cos(PI / 4.0), m_pos.y + r * sin(PI / 4.0)});
-                render_line(renderer, m_pos, {m_pos.x + r * cos(0.75 * PI), m_pos.y + r * sin(0.75 * PI)});
-                render_line(renderer, m_pos, {m_pos.x + r * cos(0.75 * PI), m_pos.y - r * sin(0.75 * PI)});
-                render_line(renderer, m_pos, {m_pos.x + r * cos(PI / 4.0), m_pos.y - r * sin(PI / 4.0)});
+                render_line(renderer, m_pos, m_pos + vector2_q1 * r);
+                render_line(renderer, m_pos, m_pos + vector2_q2 * r);
+                render_line(renderer, m_pos, m_pos + vector2_q3 * r);
+                render_line(renderer, m_pos, m_pos + vector2_q4 * r);
             }
         }
     }else {
-        const Vertices vertices(m_shape->get_vertices());
-        Vector2 A(vertices[0]);
-        Vector2 B(vertices[1]);
-        Vector2 C(vertices[2]);
-        Vector2 D(vertices[3]);
-
         if (m_type == STATIC && m_enabled) {
             SDL_SetRenderDrawColor(renderer, 0.75 * m_color.r, 0.75 * m_color.g, 0.75 * m_color.b, m_color.a);
-            render_line(renderer, A, C);
-            render_line(renderer, B, D);
+
+            const Vertices vertices(m_shape->get_vertices());
+            if (vertices.size() == 4) {
+                render_line(renderer, vertices[0], vertices[2]);
+                render_line(renderer, vertices[1], vertices[3]);
+            }
         }
-        if (m_enabled) {
-            SDL_SetRenderDrawColor(renderer, m_color.r, m_color.g, m_color.b, m_color.a);
-        }else {
-            SDL_SetRenderDrawColor(renderer, m_color.r, m_color.g, m_color.b, 0.25 * m_color.a);
+        color = m_color;
+        if (!m_enabled) {
+            color.a *= 0.25;
         }
         // Draw outline
-        render_line(renderer, A, B);
-        render_line(renderer, B, C);
-        render_line(renderer, C, D);
-        render_line(renderer, D, A);
+        m_shape->draw(renderer, color, false);
+
         // Fill the inside
-        SDL_SetRenderDrawColor(renderer, m_color.r, m_color.g, m_color.b, 0.1 * m_color.a);
-        const Vector2 edge(C - B);
-        const double len(edge.norm());
-        const Vector2 n(edge.normalized());
-        const unsigned width_px((len * RENDER_SCALE));
-        const double dw(1 / RENDER_SCALE);
-        for (unsigned i(0); i < width_px; ++i) {
-            render_line(renderer, B + n * i * dw, A + n * i * dw);
-        }
+        // color.a = m_color.a * 0.1;
+        // SDL_SetRenderDrawColor(renderer, m_color.r, m_color.g, m_color.b, 0.1 * m_color.a);
+        // const Vector2 edge(C - B);
+        // const double len(edge.norm());
+        // const Vector2 n(edge.normalized());
+        // const unsigned width_px((len * RENDER_SCALE));
+        // const double dw(1 / RENDER_SCALE);
+        // for (unsigned i(0); i < width_px; ++i) {
+        //     render_line(renderer, B + n * i * dw, A + n * i * dw);
+        // }
     }
 
 #ifdef DEBUG
@@ -258,7 +312,10 @@ void RigidBody::draw_trace(SDL_Renderer* renderer, bool update_trace) {
 
 void RigidBody::draw_bounding_box(SDL_Renderer* renderer) {
     AABB aabb(m_shape->get_aabb());
-    render_rectangle(renderer, m_pos, aabb.max.x - aabb.min.x, aabb.max.y - aabb.min.y);
+    render_line(renderer, aabb.min, {aabb.max.x, aabb.min.y});
+    render_line(renderer, {aabb.max.x, aabb.min.y}, aabb.max);
+    render_line(renderer, aabb.max, {aabb.min.x, aabb.max.y});
+    render_line(renderer, {aabb.min.x, aabb.max.y}, aabb.min);
 }
 
 void RigidBody::draw_forces(SDL_Renderer* renderer) const {

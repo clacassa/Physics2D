@@ -31,8 +31,8 @@ void World::step(double dt, int substeps, Settings& settings, bool perft) {
         RigidBodyDef def;
         def.position = {0.5 * SCENE_WIDTH, 0.5 * SCENE_HEIGHT};
         def.velocity = {1, 0};
-        Shape* ball(create_circle(0.1));
-        create_body(def, ball);
+        // Shape* ball(create_circle(0.1));
+        // create_body(def, ball);
     }
 
     m_profile.reset();
@@ -186,7 +186,7 @@ void World::render(SDL_Renderer* renderer, bool running, Settings& settings) {
     }
 }
 
-RigidBody* World::create_body(const RigidBodyDef& body_def, Shape* shape) {
+RigidBody* World::create_body(const RigidBodyDef& body_def, const Shape& shape) {
     RigidBody* body;
     body = new RigidBody(body_def, shape, body_count);
 

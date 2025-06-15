@@ -2,6 +2,7 @@
 #define RIGID_BODY_H
 
 #include <SDL_render.h>
+#include <cstddef>
 #include <deque>
 #include <string>
 #include "shape.h"
@@ -13,7 +14,7 @@ enum BodyType {
     DYNAMIC
 };
 
-constexpr double steel_density(7930); // kg / m^3
+constexpr double steel_density(7930 * 0.1); // kg / m^3 -> We are in 2D so factor 0.1
 constexpr double steel_restitution(0.78 * 0.75); // Restitution is reduced for tuning behavior
 constexpr double steel_static_friction(0.78);
 constexpr double steel_dynamic_friction(0.42);
@@ -31,7 +32,8 @@ struct RigidBodyDef {
 
 class RigidBody {
 public:
-    RigidBody(const RigidBodyDef& def, Shape* shape, const size_t id);
+    RigidBody(const RigidBodyDef& def, const Shape& shape, const size_t id);
+    RigidBody(const Shape& shape, const size_t id);
     virtual ~RigidBody();
 
     void step(double dt);

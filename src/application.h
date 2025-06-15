@@ -41,6 +41,8 @@ private:
     // Demos
     void demo_collision();
     void demo_stacking();
+    void demo_double_pendulum();
+    void demo_springs();
 
     // GUI
     void show_menubar();

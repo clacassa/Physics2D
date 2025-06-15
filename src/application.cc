@@ -4,12 +4,15 @@
 #include <iostream>
 #include <string>
 #include "application.h"
+#include "editor.h"
 #include "rigid_body.h"
 #include "shape.h"
+#include "link.h"
 #include "utils.h"
 #include "control.h"
 #include "render.h"
 #include "vector2.h"
+#include "config.h"
 
 constexpr unsigned sim_substeps(20);
 
@@ -207,6 +210,14 @@ void Application::parse_keybd_event(SDL_Event& keybd_event) {
             m_world.destroy_all();
             demo_collision();
             break;
+        case SDLK_8:
+            m_world.destroy_all();
+            demo_double_pendulum();
+            break;
+        case SDLK_7:
+            m_world.destroy_all();
+            demo_springs();
+            break;
         case SDLK_1:
             m_ctrl.editor.active = false;
             break;
@@ -237,14 +248,14 @@ void Application::parse_keybd_event(SDL_Event& keybd_event) {
             if (!m_ctrl.editor.active) {
                 RigidBodyDef body_def;
                 body_def.position = mouse;
-                Shape* ball_shape(create_circle(SCENE_WIDTH * 0.01));
+                Circle ball_shape(SCENE_WIDTH * 0.01);
                 m_world.create_body(body_def, ball_shape);
             }else {
                 RigidBodyDef body_def;
                 body_def.position = mouse;
                 body_def.type = m_editor.get_body_type();
                 body_def.enabled = m_editor.get_enabled();
-                Shape* ball_shape(create_circle(DIV));
+                Circle ball_shape(DIV);
                 m_world.create_body(body_def, ball_shape);
             }
             break;
@@ -252,14 +263,14 @@ void Application::parse_keybd_event(SDL_Event& keybd_event) {
             if (!m_ctrl.editor.active) {
                 RigidBodyDef body_def;
                 body_def.position = mouse;
-                Shape* box_shape(create_box(0.5 * SCENE_WIDTH * (0.025 + 0.001 * (rand() % 10)), 0.5 * SCENE_WIDTH * (0.025 + 0.001 * (rand() % 10))));
+                Polygon box_shape(create_box(0.5 * SCENE_WIDTH * (0.025 + 0.001 * (rand() % 10)), 0.5 * SCENE_WIDTH * (0.025 + 0.001 * (rand() % 10))));
                 m_world.create_body(body_def, box_shape);
             }else {
                 RigidBodyDef body_def;
                 body_def.position = mouse;
                 body_def.type = m_editor.get_body_type();
                 body_def.enabled = m_editor.get_enabled();
-                Shape* box_shape(create_box(DIV * 2, DIV));
+                Polygon box_shape(create_box(DIV * 2, DIV));
                 m_world.create_body(body_def, box_shape);
             }
             break;
@@ -404,35 +415,118 @@ void Application::demo_collision() {
     RigidBodyDef body_def;
     body_def.position = {SCENE_WIDTH * 0.1, SCENE_HEIGHT * 0.5};
     body_def.velocity = {3, 0};
-    Shape* collider(create_box(0.125, 0.125));
+    Polygon collider(create_box(0.125, 0.125));
     m_world.create_body(body_def, collider);
 
     body_def.velocity = vector2_zero;
     for (unsigned i(0); i < 400; ++i) {
         body_def.position = {SCENE_WIDTH * 0.25 + 0.001 * (rand() % 500),
                             SCENE_HEIGHT * 0.5 - 0.125 + 0.001 * (rand() % 250)};
-        Shape* ball(create_circle(0.01));
+        Circle ball(0.01);
         m_world.create_body(body_def, ball);
     }
+
+    m_world.disable_gravity();
+    m_settings.reset();
 }
 
 void Application::demo_stacking() {
-    // m_world.add_rectangle({SCENE_WIDTH * 0.5, 0.5}, 5, 0.5, STATIC);
-    // for (int i(0); i < 5; ++i) {
-    //     for (unsigned j(0); j < 10; ++j) {
-    //         m_world.add_rectangle({SCENE_WIDTH * 0.5 - 0.5 * (i % 2 == 0 ? i : -i - 1), 1.5 + j}, 0.5, 0.5);
-    //     }
-    // }
-    // const double center(SCENE_WIDTH * 0.5);
-    // const double bside(0.05);
-    // m_world.disable_walls();
-    // m_world.add_rectangle({center, 0.5}, 5, 0.25, BodyType::STATIC);
-    // for (unsigned i(0); i < 100; ++i) {
-    //     for (int j(0); j < 10; ++j) {
-    //         const Vector2 bpos(center - (5 - j) * bside + bside * 0.5, 0.75 + bside * i);
-    //         m_world.add_rectangle(bpos, bside, bside);
-    //     }
-    // }
+    RigidBodyDef body_def;
+    body_def.position = {SCENE_WIDTH * 0.5, 0.5};
+    body_def.type = STATIC;
+    Polygon ground_box(create_box(2.5, 0.25));
+    m_world.create_body(body_def, ground_box);
+
+    body_def.type = DYNAMIC;
+    for (int i(0); i < 5; ++i) {
+        for (unsigned j(0); j < 10; ++j) {
+            body_def.position = {SCENE_WIDTH * 0.5 - 0.5 * (i % 2 == 0 ? i : -i - 1), 1.5 + j};
+            Polygon square_box(create_square(0.25));
+            m_world.create_body(body_def, square_box);
+        }
+    }
+    m_world.enable_gravity();
+    m_settings.reset();
+}
+
+void Application::demo_double_pendulum() {
+    RigidBodyDef body_def;
+    body_def.position = {SCENE_WIDTH * 0.5, SCENE_HEIGHT * 0.5};
+    body_def.type = STATIC;
+    body_def.enabled = false;
+    Polygon anchor_box(create_box(0.5, 0.25));
+    RigidBody* anchor(m_world.create_body(body_def, anchor_box));
+
+    body_def.position = anchor->get_p() + Vector2(3, 0);
+    body_def.type = DYNAMIC;
+    body_def.enabled = true;
+    Circle circle_1(0.2);
+    RigidBody* body_1(m_world.create_body(body_def, circle_1));
+    body_def.position = anchor->get_p() + Vector2(3, 3);
+    Circle circle_2(0.2);
+    RigidBody* body_2(m_world.create_body(body_def, circle_2));
+
+    m_world.add_spring(anchor->get_p(), body_1->get_p(), Spring::UNDAMPED, spring_stiffness_infinite);
+    m_world.add_spring(body_1->get_p(), body_2->get_p(), Spring::UNDAMPED, spring_stiffness_infinite);
+
+    m_world.enable_gravity();
+    m_world.focus_on_position(body_2->get_p());
+    m_settings.draw_body_trajectory = 1;
+}
+
+void Application::demo_springs() {
+    RigidBodyDef bodydef;
+    bodydef.type = STATIC;
+
+    Vector2 placeholder(0.5 * SCENE_WIDTH, 0.75 * SCENE_HEIGHT);
+    const double block_width(0.5);
+    const double block_height(0.25);
+    for (unsigned i(0); i < 6; ++i) {
+        bodydef.position = placeholder + vector2_x * block_width * 2 * i;
+        Polygon box(create_box(block_width, block_height));
+        m_world.create_body(bodydef, box);
+    }
+
+    bodydef.position = placeholder + vector2_y * block_height * 2;
+    Polygon box(create_box(block_width, block_height));
+    RigidBody* anchor(m_world.create_body(bodydef, box));
+
+    bodydef.position = anchor->get_p() + vector2_x * block_width * 6;
+    bodydef.type = DYNAMIC;
+    Circle ball(0.25);
+    RigidBody* rolling_mass(m_world.create_body(bodydef, ball));
+
+    // Produce a natural frequency of 1 Hz
+    float stiffness(4 * PI * PI * rolling_mass->get_mass());
+    m_world.add_spring(anchor->get_p(), rolling_mass->get_p(), Spring::UNDAMPED, stiffness);
+    const Vector2 x_offset(-vector2_x * 4 * block_width);
+    rolling_mass->move(x_offset);
+
+
+    // Vertical mass-spring system
+    bodydef.position = {0.25 * SCENE_WIDTH, 0.75 * SCENE_HEIGHT};
+    bodydef.type = STATIC;
+    Polygon anchor_box(create_box(block_width, block_height));
+    RigidBody* vert_anchor(m_world.create_body(bodydef, anchor_box));
+    bodydef.position = vert_anchor->get_p() - vector2_y * 0.25 * SCENE_HEIGHT;
+    bodydef.type = DYNAMIC;
+    Polygon hanging_box(create_square(block_height));
+    RigidBody* hanging_mass(m_world.create_body(bodydef, hanging_box));
+    stiffness = 4 * PI * PI * hanging_mass->get_mass();
+    m_world.add_spring(vert_anchor->get_p(), hanging_mass->get_p(), Spring::UNDAMPED, stiffness);
+    hanging_mass->move(-vector2_y * 0.1 * SCENE_HEIGHT);
+
+    RigidBodyDef testdef;
+    testdef.position = {0.5 * SCENE_WIDTH, 0.1 * SCENE_HEIGHT};
+    Vertices points;
+    points.push_back({-0.2, 0});
+    points.push_back({0.2, 0});
+    points.push_back({0, 0.346});
+    Polygon triangle(points);
+    m_world.create_body(testdef, triangle);
+
+    m_world.enable_gravity();
+    m_settings.reset();
 }
 
 void Application::show_menubar() {

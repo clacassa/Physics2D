@@ -22,7 +22,7 @@ public:
     void step(double dt, int steps, Settings& settings, bool perft = false);
     void render(SDL_Renderer* renderer, bool running, Settings& settings);
 
-    RigidBody* create_body(const RigidBodyDef& body_def, Shape* shape);
+    RigidBody* create_body(const RigidBodyDef& body_def, const Shape& shape);
     void add_spring(Vector2 p1, Vector2 p2, Spring::DampingType damping, float stiffness);
 
     void destroy_body(RigidBody* body);
@@ -40,6 +40,8 @@ public:
 
     inline unsigned get_body_count() const { return body_count; }
     inline void toggle_gravity() { gravity_enabled = !gravity_enabled; }
+    inline void enable_gravity() { gravity_enabled = 1; }
+    inline void disable_gravity() { gravity_enabled = 0; }
     inline void disable_walls() { walls_enabled = false; }
     
 private:

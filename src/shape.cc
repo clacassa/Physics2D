@@ -1,9 +1,12 @@
 #include "shape.h"
 #include "config.h"
 #include "narrow_phase.h"
+#include "render.h"
 #include "transform2.h"
 #include "vector2.h"
 #include <cassert>
+#include <iostream>
+#include <SDL_render.h>
 
 Shape::Shape(Vertices points, double radius, ShapeType type)
 :   m_type(type)
@@ -24,11 +27,6 @@ Shape::Shape(Vertices points, double radius, ShapeType type)
     }
 }
 
-Circle::Circle(double radius) : Shape({}, radius, CIRCLE) {
-    compute_area();
-    compute_centroid();
-}
-
 void Circle::transform(const Vector2 p, const double theta) {
     m_centroid = p;
 
@@ -43,7 +41,10 @@ void Circle::rotate(const double d_theta) {
     // Stub
 }
 
-MassProperties Circle::compute_mass_properties(const double density) const {
+MassProperties Circle::compute_mass_properties(const double density) {
+    compute_area();
+    compute_centroid();
+
     MassProperties mp;
 
     mp.mass = m_area * density;
@@ -55,6 +56,16 @@ MassProperties Circle::compute_mass_properties(const double density) const {
 bool Circle::contains_point(const Vector2 point) const {
     const Vector2 test(point - m_centroid);
     return dot2(test, test) <= m_radius * m_radius;
+}
+
+void Circle::draw(SDL_Renderer* renderer, const SDL_Color& color, bool fill) const {
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+
+    if (fill) {
+        render_circle_fill_raster(renderer, m_centroid, m_radius);
+    }else {
+        render_circle(renderer, m_centroid, m_radius);
+    }
 }
 
 void Circle::compute_area() {
@@ -71,16 +82,10 @@ void Circle::compute_centroid() {
     m_centroid = m_ref_centroid;
 }
 
-
-Polygon::Polygon(Vertices vertices) : Shape(vertices, 0, POLYGON) {
-    compute_area();
-    compute_centroid();
-}
-
 void Polygon::transform(const Vector2 p, const double theta) {
     const Vector2 t(p - m_ref_centroid);
     for (unsigned i(0); i < m_count; ++i) {
-        m_vertices[i] = transform2(m_ref_vertices[i], t, theta);
+        m_vertices[i] = transform2(m_ref_vertices[i], t, theta, m_ref_centroid);
     }
 
     m_centroid = p;
@@ -102,7 +107,10 @@ void Polygon::rotate(const double d_theta) {
     }
 }
 
-MassProperties Polygon::compute_mass_properties(const double density) const {
+MassProperties Polygon::compute_mass_properties(const double density) {
+    compute_area();
+    compute_centroid();
+
     MassProperties mp;
     mp.mass = m_area * density;
     mp.inertia = 0;
@@ -119,12 +127,25 @@ MassProperties Polygon::compute_mass_properties(const double density) const {
 }
 
 bool Polygon::contains_point(const Vector2 point) const {
-    Vector2 AP(point - m_vertices[0]);
-    Vector2 AB(m_vertices[1] - m_vertices[0]);
-    Vector2 AD(m_vertices[3] - m_vertices[0]);
+    // From: https://wrfranklin.org/Research/Short_Notes/pnpoly.html
+    unsigned i, j = 0;
+    bool c(0);
+    for (i = 0, j = m_count-1; i < m_count; j = i++) {
+        if ( ((m_vertices[i].y > point.y) != (m_vertices[j].y > point.y)) &&
+            (point.x < (m_vertices[j].x - m_vertices[i].x) * (point.y - m_vertices[i].y) / (m_vertices[j].y - m_vertices[i].y) + m_vertices[i].x) ) {
+            c = !c;
+        }
+    }
+    return c;
+}
 
-    return (0 <= dot2(AP, AB) && dot2(AP, AB) <= dot2(AB, AB)
-         && 0 <= dot2(AP, AD) && dot2(AP, AD) <= dot2(AD, AD));
+void Polygon::draw(SDL_Renderer* renderer, const SDL_Color& color, bool fill) const {
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    for (unsigned i(0); i < m_count; ++i) {
+        const Vector2 a(m_vertices[i]);
+        const Vector2 b(m_vertices[(i + 1) % m_count]);
+        render_line(renderer, a, b);
+    }
 }
 
 void Polygon::compute_centroid() {
@@ -162,17 +183,23 @@ void Polygon::compute_aabb() {
 }
 
 
-Shape* create_circle(const double radius) {
-    return new Circle(radius);
-}
-
-Shape* create_box(const double half_width, const double half_height) {
+Polygon create_box(const double half_width, const double half_height) {
     Vertices vertices;
     vertices.push_back(Vector2(-half_width, half_height));
     vertices.push_back(Vector2(-half_width, -half_height));
     vertices.push_back(Vector2(half_width, -half_height));
     vertices.push_back(Vector2(half_width, half_height));
 
-    return new Polygon(vertices);
+    return Polygon(vertices);
 }
 
+Polygon create_square(const double half_side) {
+    Vertices points;
+
+    points.push_back(Vector2(-half_side, half_side));
+    points.push_back(Vector2(-half_side, -half_side));
+    points.push_back(Vector2(half_side, -half_side));
+    points.push_back(Vector2(half_side, half_side));
+
+    return Polygon(points);
+}
