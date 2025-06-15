@@ -1,3 +1,4 @@
+#include <SDL_stdinc.h>
 #include <array>
 #include "rigid_body.h"
 #include "shape.h"
@@ -27,7 +28,10 @@ RigidBody::RigidBody(const RigidBodyDef& def, const Shape& shape, const size_t i
             m_shape = new Circle(shape.get_radius());
             break;
         case POLYGON:
-            m_shape = new Polygon(shape.get_vertices());
+            ConvexHull hull;
+            hull.points = shape.get_vertices();
+            hull.count = shape.get_count();
+            m_shape = new Polygon(hull);
             break;
     }
 
@@ -66,7 +70,10 @@ RigidBody::RigidBody(const Shape& shape, const size_t id)
             m_shape = new Circle(shape.get_radius());
             break;
         case POLYGON:
-            m_shape = new Polygon(shape.get_vertices());
+            ConvexHull hull;
+            hull.points = shape.get_vertices();
+            hull.count = shape.get_count();
+            m_shape = new Polygon(hull);
             break;
     }
 
@@ -257,7 +264,7 @@ void RigidBody::draw(SDL_Renderer* renderer) {
             SDL_SetRenderDrawColor(renderer, 0.75 * m_color.r, 0.75 * m_color.g, 0.75 * m_color.b, m_color.a);
 
             const Vertices vertices(m_shape->get_vertices());
-            if (vertices.size() == 4) {
+            if (m_shape->get_count() == 4) {
                 render_line(renderer, vertices[0], vertices[2]);
                 render_line(renderer, vertices[1], vertices[3]);
             }
@@ -407,12 +414,13 @@ void RigidBody::handle_wall_collisions() {
 
         const AABB aabb(m_shape->get_aabb());
         const Vertices vertices(m_shape->get_vertices());
+        const uint8_t count(m_shape->get_count());
 
         if (aabb.min.x <= 0) {
             collision_h.normal = {-1, 0};
-            for (auto v : vertices) {
-                if (v.x <= 0) {
-                    collision_h.contact_points[0 + collision_h.count] = v;
+            for (uint8_t i(0); i < count; ++i) {
+                if (vertices[i].x <= 0) {
+                    collision_h.contact_points[0 + collision_h.count] = vertices[i];
                     ++collision_h.count;
                     if (collision_h.count >= 2) {
                         break;
@@ -422,9 +430,9 @@ void RigidBody::handle_wall_collisions() {
             m_pos.x -= aabb.min.x;
         }else if (aabb.max.x >= SCENE_WIDTH) {
             collision_h.normal = {1, 0};
-            for (auto v : vertices) {
-                if (v.x >= SCENE_WIDTH) {
-                    collision_h.contact_points[0 + collision_h.count] = v;
+            for (uint8_t i(0); i < count; ++i) {
+                if (vertices[i].x >= SCENE_WIDTH) {
+                    collision_h.contact_points[0 + collision_h.count] = vertices[i];
                     ++collision_h.count;
                     if (collision_h.count >= 2) {
                         break;
@@ -435,9 +443,9 @@ void RigidBody::handle_wall_collisions() {
         }
         if (aabb.min.y <= 0) {
             collision_v.normal = {0, -1};
-            for (auto v : vertices) {
-                if (v.y <= 0) {
-                    collision_v.contact_points[0 + collision_v.count] = v;
+            for (uint8_t i(0); i < count; ++i) {
+                if (vertices[i].y <= 0) {
+                    collision_v.contact_points[0 + collision_v.count] = vertices[i];
                     ++collision_v.count;
                     if (collision_v.count >= 2) {
                         break;
@@ -447,9 +455,9 @@ void RigidBody::handle_wall_collisions() {
             m_pos.y -= aabb.min.y;
         }else if (aabb.max.y >= SCENE_HEIGHT) {
             collision_v.normal = {0, 1};
-            for (auto v : vertices) {
-                if (v.y >= SCENE_HEIGHT) {
-                    collision_v.contact_points[0 + collision_v.count] = v;
+            for (uint8_t i(0); i < count; ++i) {
+                if (vertices[i].y >= SCENE_HEIGHT) {
+                    collision_v.contact_points[0 + collision_v.count] = vertices[i];
                     ++collision_v.count;
                     if (collision_v.count >= 2) {
                         break;

@@ -1,5 +1,6 @@
 #include <climits>
 #include <cassert>
+#include <cstdint>
 #include "narrow_phase.h"
 #include "shape.h"
 #include "utils.h"
@@ -114,11 +115,13 @@ Vector2 support(const Shape* shape, const Vector2 d) {
         support = shape->get_centroid() + d.normalized() * shape->get_radius();
     }else {
         double max(-INT_MAX);
-        for (auto v : shape->get_vertices()) {
-            double proj(dot2(v, d));
+        const Vertices vert(shape->get_vertices());
+        const uint8_t count(shape->get_count());
+        for (uint8_t i(0); i < count; ++i) {
+            double proj(dot2(vert[i], d));
             if (proj >= max) {
                 max = proj;
-                support = v;
+                support = vert[i];
             }
         }
     }
@@ -159,13 +162,13 @@ Manifold collide_circle_polygon(Shape* a, Shape* b) {
     Manifold result;
 
     auto vertices(b->get_vertices());
-    const unsigned vertices_count(vertices.size());
+    const uint8_t vertices_count(b->get_count());
     const Vector2 centroid_a(a->get_centroid());
 
     result.depth = INT_MAX;
 
     // Separation Axis Theorem
-    for (size_t i(0); i < vertices_count; ++i) {
+    for (uint8_t i(0); i < vertices_count; ++i) {
         Vector2 A(vertices[i]);
         Vector2 B(vertices[(i + 1) % vertices_count]);
         Vector2 edge(B - A);
@@ -220,13 +223,15 @@ Manifold collide_polygon_polygon(Shape* a, Shape* b) {
     Manifold result;
 
     auto a_vertices(a->get_vertices());
+    const uint8_t a_count(a->get_count());
     auto b_vertices(b->get_vertices());
+    const uint8_t b_count(b->get_count());
 
     result.depth = INT_MAX;
 
     // Separation Axis Theorem
-    for (size_t i(0); i < a_vertices.size(); ++i) {
-        Vector2 edge(a_vertices[(i + 1) % a_vertices.size()] - a_vertices[i]);
+    for (uint8_t i(0); i < a_count; ++i) {
+        Vector2 edge(a_vertices[(i + 1) % a_count] - a_vertices[i]);
         Vector2 normal(edge.normal());
 
         bool all_in_front(true);
@@ -259,8 +264,8 @@ Manifold collide_polygon_polygon(Shape* a, Shape* b) {
     Vector2 n_2;
     Vector2 p_2;
 
-    for (size_t i(0); i < b_vertices.size(); ++i) {
-        Vector2 edge(b_vertices[(i + 1) % b_vertices.size()] - b_vertices[i]);
+    for (uint8_t i(0); i < b_count; ++i) {
+        Vector2 edge(b_vertices[(i + 1) % b_count] - b_vertices[i]);
         Vector2 normal(edge.normal());
 
         bool all_in_front(true);
@@ -531,11 +536,11 @@ namespace {
 
     Edge closest_feature(Shape* shape, Vector2 n) {
         const Vertices vertices(shape->get_vertices());
-        const unsigned count(vertices.size());
+        const uint8_t count(shape->get_count());
         unsigned index(0);
 
         double max(-INT_MAX);
-        for (unsigned i(0); i < count; ++i) {
+        for (uint8_t i(0); i < count; ++i) {
             double projection(dot2(n, vertices[i]));
             if (projection >= max) {
                 max = projection;

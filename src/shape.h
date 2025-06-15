@@ -7,14 +7,18 @@
 #include "vector2.h"
 #include "render.h"
 
-typedef std::vector<Vector2> Vertices;
-
 enum ShapeType {
     CIRCLE,
     POLYGON
 };
 
-constexpr unsigned shape_max_vertices(8);
+constexpr uint8_t shape_max_vertices(8);
+typedef std::array<Vector2, shape_max_vertices> Vertices;
+
+struct ConvexHull {
+    Vertices points;
+    uint8_t count;
+};
 
 struct AABB {
     Vector2 min; // Bottom left corner
@@ -28,11 +32,12 @@ struct MassProperties {
 
 class Shape {
 public:
-    Shape(Vertices points, double radius, ShapeType type);
+    Shape(ConvexHull hull, double radius, ShapeType type);
     virtual ~Shape() {}
 
     Vector2 get_centroid() const { return m_centroid; }
     Vertices get_vertices() const { return m_vertices; }
+    uint8_t get_count() const { return m_count; }
     double get_radius() const { return m_radius; }
     double get_area() const { return m_area; }
     AABB get_aabb() const { return m_aabb; }
@@ -50,7 +55,7 @@ protected:
     double m_radius;
     Vertices m_vertices;
     Vertices m_ref_vertices;
-    unsigned m_count;
+    uint8_t m_count;
 
     double m_area;
 
@@ -80,7 +85,7 @@ private:
 
 class Polygon : public Shape {
 public:
-    Polygon(Vertices vertices) : Shape(vertices, 0, POLYGON) {}
+    Polygon(ConvexHull hull) : Shape(hull, 0, POLYGON) {}
 
     void transform(const Vector2 p, const double theta) override;
     void translate(const Vector2 delta_p) override;

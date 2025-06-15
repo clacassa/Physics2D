@@ -5,25 +5,24 @@
 #include "transform2.h"
 #include "vector2.h"
 #include <cassert>
+#include <cstdint>
 #include <iostream>
 #include <SDL_render.h>
 
-Shape::Shape(Vertices points, double radius, ShapeType type)
+Shape::Shape(ConvexHull hull, double radius, ShapeType type)
 :   m_type(type)
 {
     if (m_type == CIRCLE) {
         m_radius = radius;
         m_count = 0;
-        m_vertices.clear();
     }else {
         // Check hull convexity and nb of vertices
         // m_vertices = ...
         // m_count = ...
         // m_radius = ...
-        assert(points.size() <= shape_max_vertices);
-        m_ref_vertices = points;
+        m_ref_vertices = hull.points;
         m_vertices = m_ref_vertices;
-        m_count = m_ref_vertices.size();
+        m_count = hull.count;
     }
 }
 
@@ -96,14 +95,14 @@ void Polygon::transform(const Vector2 p, const double theta) {
 
 void Polygon::translate(const Vector2 delta_p) {
     m_centroid += delta_p;
-    for (auto& v : m_vertices) {
-        v += delta_p;
+    for (uint8_t i(0); i < m_count; ++i) {
+        m_vertices[i] += delta_p;
     }
 }
 
 void Polygon::rotate(const double d_theta) {
-    for (auto& v : m_vertices) {
-        v = transform2(v, vector2_zero, d_theta, m_centroid);
+    for (uint8_t i(0); i < m_count; ++i) {
+        m_vertices[i] = transform2(m_vertices[i], vector2_zero, d_theta, m_centroid);
     }
 }
 
@@ -115,7 +114,7 @@ MassProperties Polygon::compute_mass_properties(const double density) {
     mp.mass = m_area * density;
     mp.inertia = 0;
 
-    for (unsigned i(0); i < m_count; ++i) {
+    for (uint8_t i(0); i < m_count; ++i) {
         Vector2 a(m_vertices[i] - m_centroid);
         Vector2 b(m_vertices[(i + 1) % m_count] - m_centroid);
         const double mass_tri(0.5 * density * cross2(a, b));
@@ -141,7 +140,7 @@ bool Polygon::contains_point(const Vector2 point) const {
 
 void Polygon::draw(SDL_Renderer* renderer, const SDL_Color& color, bool fill) const {
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-    for (unsigned i(0); i < m_count; ++i) {
+    for (uint8_t i(0); i < m_count; ++i) {
         const Vector2 a(m_vertices[i]);
         const Vector2 b(m_vertices[(i + 1) % m_count]);
         render_line(renderer, a, b);
@@ -150,7 +149,7 @@ void Polygon::draw(SDL_Renderer* renderer, const SDL_Color& color, bool fill) co
 
 void Polygon::compute_centroid() {
     double Cx(0);
-    for (unsigned i(0); i < m_count; ++i) {
+    for (uint8_t i(0); i < m_count; ++i) {
         Vector2 a(m_vertices[i]);
         Vector2 b(m_vertices[(i + 1) % m_count]);
         Cx += (a.x + b.x) * cross2(a, b);
@@ -158,7 +157,7 @@ void Polygon::compute_centroid() {
     Cx /= (6 * m_area);
 
     double Cy(0);
-    for (unsigned i(0); i < m_count; ++i) {
+    for (uint8_t i(0); i < m_count; ++i) {
         Vector2 a(m_vertices[i]);
         Vector2 b(m_vertices[(i + 1) % m_count]);
         Cy += (a.y + b.y) * cross2(a, b);
@@ -171,7 +170,7 @@ void Polygon::compute_centroid() {
 
 void Polygon::compute_area() {
     double area(0);
-    for (unsigned i(0); i < m_count; ++i) {
+    for (uint8_t i(0); i < m_count; ++i) {
         area += cross2(m_vertices[i], m_vertices[(i + 1) % m_count]);
     }
     m_area = 0.5 * area;
@@ -184,22 +183,22 @@ void Polygon::compute_aabb() {
 
 
 Polygon create_box(const double half_width, const double half_height) {
-    Vertices vertices;
-    vertices.push_back(Vector2(-half_width, half_height));
-    vertices.push_back(Vector2(-half_width, -half_height));
-    vertices.push_back(Vector2(half_width, -half_height));
-    vertices.push_back(Vector2(half_width, half_height));
+    Vertices points;
+    points[0] = Vector2(-half_width, half_height);
+    points[1] = Vector2(-half_width, -half_height);
+    points[2] = Vector2(half_width, -half_height);
+    points[3] = Vector2(half_width, half_height);
 
-    return Polygon(vertices);
+    return Polygon(ConvexHull{points, 4});
 }
 
 Polygon create_square(const double half_side) {
     Vertices points;
 
-    points.push_back(Vector2(-half_side, half_side));
-    points.push_back(Vector2(-half_side, -half_side));
-    points.push_back(Vector2(half_side, -half_side));
-    points.push_back(Vector2(half_side, half_side));
+    points[0] = Vector2(-half_side, half_side);
+    points[1] = Vector2(-half_side, -half_side);
+    points[2] = Vector2(half_side, -half_side);
+    points[3] = Vector2(half_side, half_side);
 
-    return Polygon(points);
+    return Polygon(ConvexHull{points, 4});
 }

@@ -519,10 +519,10 @@ void Application::demo_springs() {
     RigidBodyDef testdef;
     testdef.position = {0.5 * SCENE_WIDTH, 0.1 * SCENE_HEIGHT};
     Vertices points;
-    points.push_back({-0.2, 0});
-    points.push_back({0.2, 0});
-    points.push_back({0, 0.346});
-    Polygon triangle(points);
+    points[0] = {-0.2, 0};
+    points[1] = {0.2, 0};
+    points[2] = {0, 0.346};
+    Polygon triangle(ConvexHull{points, 3});
     m_world.create_body(testdef, triangle);
 
     m_world.enable_gravity();
