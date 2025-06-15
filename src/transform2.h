@@ -6,7 +6,7 @@
 #include "vector2.h"
 
 /**
- * @brief Performs a 2D transform of vector v0 translated by t and rotated by q. A point of rotation different than the origin can be specified.
+ * @brief Performs a 2D transform of vector v0 rotated by q and translated by t. A point of rotation different than the origin can be specified.
  * @param v0 The vector to transform
  * @param t The translation vector
  * @param q The rotation angle

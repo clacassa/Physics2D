@@ -1,4 +1,3 @@
-#include <iostream>
 #include <cassert>
 #include <array>
 #include <cmath>
@@ -21,12 +20,8 @@ namespace {
             return Vector2(dot2(mat[0], b), dot2(mat[1], b));
         }
     };
-
-    struct Mat33 {
-        std::array<std::array<double, 3>, 3> mat;
-    };
 }
 
 Vector2 transform2(const Vector2 v0, const Vector2 t, const double q, const Vector2 axis) {
-    return Mat22::rot(q).mul(v0) - Mat22::rot(q).mul(axis) + axis + t;
+    return Mat22::rot(q).mul(v0 - axis) + axis + t;
 }

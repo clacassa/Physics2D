@@ -4,7 +4,6 @@
 #include "transform2.h"
 #include "vector2.h"
 #include <cassert>
-#include <iostream>
 
 Shape::Shape(Vertices points, double radius, ShapeType type)
 :   m_type(type)
@@ -81,7 +80,7 @@ Polygon::Polygon(Vertices vertices) : Shape(vertices, 0, POLYGON) {
 void Polygon::transform(const Vector2 p, const double theta) {
     const Vector2 t(p - m_ref_centroid);
     for (unsigned i(0); i < m_count; ++i) {
-        m_vertices[i] = transform2(m_ref_vertices[i], t, theta, vector2_zero);
+        m_vertices[i] = transform2(m_ref_vertices[i], t, theta);
     }
 
     m_centroid = p;

@@ -2,8 +2,6 @@
 #include <imgui_impl_sdl2.h>
 #include <imgui_impl_sdlrenderer2.h>
 #include <iostream>
-#include <memory>
-#include <sstream>
 #include <string>
 #include "application.h"
 #include "rigid_body.h"
@@ -11,7 +9,6 @@
 #include "utils.h"
 #include "control.h"
 #include "render.h"
-#include "config.h"
 #include "vector2.h"
 
 constexpr unsigned sim_substeps(20);

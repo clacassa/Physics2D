@@ -1,12 +1,10 @@
 #ifndef NARROW_PHASE_H
 #define NARROW_PHASE_H
 
-#include <vector>
 #include <array>
 #include "vector2.h"
 
 struct Timer;
-class RigidBody;
 class Shape;
 
 struct Manifold {
@@ -28,24 +26,10 @@ struct DistanceInfo {
 };
 
 /**
- * @brief Computes the support point of an object in a given direction
+ * @brief Computes the support point of a convex shape following a given direction
  * @return 
  */
-// Vector2 support(RigidBody* body, Vector2 d);
-
 Vector2 support(const Shape* shape, const Vector2 d);
-
-/**
- * @brief Computes the support point of an object in a given direction,
- * skipping the point given as parameter. In other words, if the latter
- * is a point laying on the boundary of the object, it is not taken
- * into account during the calculation of the support.
- * @param skip_me Point to ignore during the support calculation
- * @return 
- */
-// Vector2 support(RigidBody* body, Vector2 d, Vector2 skip_me);
-
-// Manifold detect_collision(RigidBody* a, RigidBody* b, Timer& gjk, Timer& epa, Timer& clip);
 
 // SAT
 Manifold collide_circle_circle(Shape* a, Shape* b);

@@ -1,16 +1,13 @@
 #ifndef WORLD_H
 #define WORLD_H
 
-#include <cmath>
 #include <vector>
 #include <array>
 #include <string>
-#include <chrono>
 #include "broad_phase.h" // SweepAndPrune
 #include "link.h"        // Spring::DampingType
 #include "rigid_body.h"
 
-// Forward declarations
 struct Settings;
 struct DistanceInfo;
 struct Manifold;
@@ -25,10 +22,6 @@ public:
     void step(double dt, int steps, Settings& settings, bool perft = false);
     void render(SDL_Renderer* renderer, bool running, Settings& settings);
 
-    // void add_ball(Vector2 pos, double radius, BodyType type = DYNAMIC, bool enabled = true,
-    //         Vector2 vel = {0, 0});
-    // void add_rectangle(Vector2 pos, double width, double height, BodyType type = DYNAMIC,
-    //         bool enabled = true, Vector2 vel = {0, 0});
     RigidBody* create_body(const RigidBodyDef& body_def, Shape* shape);
     void add_spring(Vector2 p1, Vector2 p2, Spring::DampingType damping, float stiffness);
 

@@ -1,5 +1,4 @@
 #include <SDL_hints.h>
-#include <iostream>
 #include "world.h"
 #include "rigid_body.h"
 #include "shape.h"
@@ -19,7 +18,6 @@ World::World()
     focus(0), 
     m_force_fields({Vector2{0.0, -g * gravity_enabled}, Vector2{0.0, 0.0}, Vector2{0.0, 0.0}})
 {
-    //this->add_ball({SCENE_WIDTH / 2.0, SCENE_HEIGHT / 2.0}, 2.0, SCENE_WIDTH / 100, DYNAMIC, true, {5.0, 0.0});
     body_count = m_bodies.size();
     m_profile.reset();
 }
@@ -30,7 +28,11 @@ World::~World() {
 
 void World::step(double dt, int substeps, Settings& settings, bool perft) {
     if (perft && body_count < 250) {
-        // add_ball({SCENE_WIDTH/2.0, SCENE_HEIGHT/2.0}, 0.1, DYNAMIC, true, {1, 0});
+        RigidBodyDef def;
+        def.position = {0.5 * SCENE_WIDTH, 0.5 * SCENE_HEIGHT};
+        def.velocity = {1, 0};
+        Shape* ball(create_circle(0.1));
+        create_body(def, ball);
     }
 
     m_profile.reset();
@@ -184,32 +186,9 @@ void World::render(SDL_Renderer* renderer, bool running, Settings& settings) {
     }
 }
 
-// void World::add_ball(Vector2 pos, double radius, BodyType type, bool enabled,
-//         Vector2 vel) {
-//     const double depth(radius);
-//     const double volume(PI * radius * radius * depth);
-//     m_bodies.push_back(new Ball(vel, pos, steel_density * volume, radius, type, enabled));
-//     ++body_count;
-//
-//     m_sap.update_list(m_bodies);
-// }
-
-// void World::add_rectangle(Vector2 p, double w, double h, BodyType type, bool enabled, Vector2 v) {
-//     const Vertices vertices{
-//         {p.x - w / 2, p.y + h / 2},
-//         {p.x - w / 2, p.y - h / 2},
-//         {p.x + w / 2, p.y - h / 2},
-//         {p.x + w / 2, p.y + h / 2}
-//     };
-//     m_bodies.push_back(new Rectangle(v, p, steel_density * w * h * h, w, h, vertices, type, enabled));
-//     ++body_count;
-//
-//     m_sap.update_list(m_bodies);
-// }
-
 RigidBody* World::create_body(const RigidBodyDef& body_def, Shape* shape) {
     RigidBody* body;
-    body = new RigidBody(body_def, shape);
+    body = new RigidBody(body_def, shape, body_count);
 
     m_bodies.push_back(body);
     m_sap.update_list(m_bodies);

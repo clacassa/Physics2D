@@ -1,9 +1,7 @@
 #include <SDL.h>
 #include <iostream>
-#include <random>
 #include "application.h"
 #include "render.h"
-#include "config.h"
 
 SDL_DisplayMode get_screen_dimensions();
 void init_window_and_renderer();

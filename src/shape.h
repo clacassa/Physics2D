@@ -30,7 +30,6 @@ public:
 
     Vector2 get_centroid() const { return m_centroid; }
     Vertices get_vertices() const { return m_vertices; }
-    Vertices get_ref_vertices() const { return m_ref_vertices; }
     double get_radius() const { return m_radius; }
     AABB get_aabb() const { return m_aabb; }
     ShapeType get_type() const { return m_type; }

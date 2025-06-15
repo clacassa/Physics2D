@@ -1,10 +1,8 @@
 #include <climits>
 #include <cassert>
 #include "narrow_phase.h"
-#include "rigid_body.h"
 #include "shape.h"
 #include "utils.h"
-#include "config.h"
 #include "vector2.h"
 
 namespace {
@@ -109,25 +107,6 @@ namespace {
      */
     ClosestPoints convex_combination(Simplex s, const SourcePoints& points);
 }
-
-
-// Vector2 support(RigidBody* body, Vector2 d) {
-//     Vector2 support;
-//     if (body->has_vertices()) {
-//         double max(-INT_MAX);
-//         for (auto v : body->get_vertices()) {
-//             double projection(dot2(v, d));
-//             if (projection >= max) {
-//                 max = projection;
-//                 support = v;
-//             }
-//         }
-//     }else {
-//         support = body->get_p() + d.normalized() * body->get_radius();
-//     }
-//
-//     return support;
-// }
 
 Vector2 support(const Shape* shape, const Vector2 d) {
     Vector2 support;

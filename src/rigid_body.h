@@ -2,9 +2,7 @@
 #define RIGID_BODY_H
 
 #include <SDL_render.h>
-#include <cmath>
 #include <deque>
-#include <vector>
 #include <string>
 #include "shape.h"
 #include "vector2.h"
@@ -33,10 +31,7 @@ struct RigidBodyDef {
 
 class RigidBody {
 public:
-    RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, BodyType type_, bool enabled_,
-        Vertices verticies);
-    RigidBody(Vector2 vel, Vector2 pos, double m_, double I_, BodyType type_, bool enabled_);
-    RigidBody(const RigidBodyDef& def, Shape* shape);
+    RigidBody(const RigidBodyDef& def, Shape* shape, const size_t id);
     virtual ~RigidBody();
 
     void step(double dt);
@@ -82,14 +77,7 @@ public:
     inline Shape* get_shape() const { return m_shape; }
     inline ShapeType get_shape_type() const { return m_shape->get_type(); }
 
-    // inline bool has_vertices() const { return !m_vertices.empty(); }
-    // inline virtual std::vector<Vector2> get_vertices() const { return m_vertices; }
-    // inline virtual double get_radius() const { return 0.0; }
-    // inline AABB get_AABB() const { return m_shape->get_aabb(); }
-
     void handle_wall_collisions();
-    // virtual void update_bounding_box() = 0;
-    // virtual bool contains_point(const Vector2 point) const = 0;
 
 protected:
     // linear, x y axis
@@ -118,8 +106,6 @@ protected:
     BodyType m_type;
     bool m_enabled;
 
-    // Vertices m_vertices;
-    // AABB m_aabb;
     Shape* m_shape;
 
     size_t max_track_length = 1e3;
@@ -129,58 +115,4 @@ protected:
     size_t m_id;
 };
 
-
-// class Ball : public RigidBody {
-// public:
-//     Ball(Vector2 vel, Vector2 pos, double m, double r_, BodyType type = DYNAMIC, bool enabled = true);
-//     virtual ~Ball() {}
-//
-//     // A ball doesn't have any verticies
-//     // Vertices get_vertices() const override;
-//     // double get_radius() const override;
-//     void draw(SDL_Renderer* renderer) override;
-//     void handle_wall_collisions() override;
-//     // void update_bounding_box() override;
-//     // bool contains_point(const Vector2 point) const override;
-//
-// // private:
-// //     double r;
-// };
-
-// class Rectangle : public RigidBody {
-// public:
-//     Rectangle(Vector2 vel, Vector2 pos, double m, double w_, double h_, Vertices verticies,
-//             BodyType type = DYNAMIC, bool enabled = true);
-//     virtual ~Rectangle() {}
-//
-//     void draw(SDL_Renderer* renderer) override;
-//     void handle_wall_collisions() override;
-//     // void update_bounding_box() override;
-//     // bool contains_point(const Vector2 point) const override;
-//
-// // private:
-// //     double w;
-// //     double h;
-// };
-
-// class Triangle : public RigidBody { 
-// public:
-//     Triangle(Vector2 vel, Vector2 pos, double m, Vertices vertices, bool movable = true);
-//     virtual ~Triangle() {}
-
-//     void draw(SDL_Renderer* renderer) const override;
-//     void handle_wall_collisions() override;
-//     void update_bounding_box() override;
-//     bool contains_point(const Vector2 point) const override;
-// };
-
 #endif /* RIGID_BODY_H */
-
-/*
-Maybe implement a composition method for example Movable, NotMovable classes
-that inherit from RigidBody base class, then the objects can derive from Movable
-or NotMovable
-
-Drawback: RigidBody must be an abstract class so every action outside the transition unit
-must be done via methods and there will be no getter/setter methods
-*/
