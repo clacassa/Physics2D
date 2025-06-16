@@ -14,7 +14,7 @@ enum BodyType {
     DYNAMIC
 };
 
-constexpr double steel_density(7930 * 0.1); // kg / m^3 -> We are in 2D so factor 0.1
+constexpr double steel_density(7930 * 0.01); // kg / m^3 -> We are in 2D so factor 0.01 (1cm thick)
 constexpr double steel_restitution(0.78 * 0.75); // Restitution is reduced for tuning behavior
 constexpr double steel_static_friction(0.78);
 constexpr double steel_dynamic_friction(0.42);

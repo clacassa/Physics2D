@@ -26,6 +26,7 @@ void render_circle(SDL_Renderer* renderer, Vector2 center, double radius);
 void render_circle_fill(SDL_Renderer*, Vector2 center, double radius);
 void render_circle_fill_raster(SDL_Renderer* renderer, Vector2 center, double radius);
 void render_rectangle(SDL_Renderer* renderer, Vector2 center, double w, double h);
+void render_polygon_fill(SDL_Renderer* renderer, Vector2* vertices, uint8_t n, uint32_t color);
 
 /**
  *  RENDER_SCALE = camera_width
@@ -38,6 +39,8 @@ namespace camera {
     void translate_world(Vector2 delta);
     void zoom_in();
     void zoom_out();
+
+    bool is_on_screen(Vector2 world_p);
 }
 
 #endif /* RENDER_H */

@@ -99,7 +99,7 @@ private:
     void compute_aabb() override;
 };
 
-// Helper functions for polygons
+// Helper functions for polygon creation
 Polygon create_box(const double half_width, const double half_height);
 Polygon create_square(const double half_side);
 

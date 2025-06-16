@@ -42,7 +42,8 @@ public:
     inline void toggle_gravity() { gravity_enabled = !gravity_enabled; }
     inline void enable_gravity() { gravity_enabled = 1; }
     inline void disable_gravity() { gravity_enabled = 0; }
-    inline void disable_walls() { walls_enabled = false; }
+    inline void enable_walls() { walls_enabled = 1; }
+    inline void disable_walls() { walls_enabled = 0; }
     
 private:
     // Struct to store performance metrics

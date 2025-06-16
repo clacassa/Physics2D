@@ -427,6 +427,7 @@ void Application::demo_collision() {
     }
 
     m_world.disable_gravity();
+    m_world.disable_walls();
     m_settings.reset();
 }
 
@@ -434,18 +435,22 @@ void Application::demo_stacking() {
     RigidBodyDef body_def;
     body_def.position = {SCENE_WIDTH * 0.5, 0.5};
     body_def.type = STATIC;
-    Polygon ground_box(create_box(2.5, 0.25));
-    m_world.create_body(body_def, ground_box);
+
+    const double block_size(0.1);
+    Polygon ground_box(create_box(block_size * 20, 0.1));
+    RigidBody* ground(m_world.create_body(body_def, ground_box));
 
     body_def.type = DYNAMIC;
-    for (int i(0); i < 5; ++i) {
-        for (unsigned j(0); j < 10; ++j) {
-            body_def.position = {SCENE_WIDTH * 0.5 - 0.5 * (i % 2 == 0 ? i : -i - 1), 1.5 + j};
-            Polygon square_box(create_square(0.25));
+    for (int i(0); i < 9; ++i) {
+        for (unsigned j(0); j < 15; ++j) {
+            const double x(ground->get_p().x - 2*block_size * (i % 2 == 0 ? i : -i - 1));
+            body_def.position = {x, 1.5 + j};
+            Polygon square_box(create_square(block_size));
             m_world.create_body(body_def, square_box);
         }
     }
     m_world.enable_gravity();
+    m_world.disable_walls();
     m_settings.reset();
 }
 
@@ -460,16 +465,16 @@ void Application::demo_double_pendulum() {
     body_def.position = anchor->get_p() + Vector2(3, 0);
     body_def.type = DYNAMIC;
     body_def.enabled = true;
-    Circle circle_1(0.2);
-    RigidBody* body_1(m_world.create_body(body_def, circle_1));
+    Circle circle(0.2);
+    RigidBody* body_1(m_world.create_body(body_def, circle));
     body_def.position = anchor->get_p() + Vector2(3, 3);
-    Circle circle_2(0.2);
-    RigidBody* body_2(m_world.create_body(body_def, circle_2));
+    RigidBody* body_2(m_world.create_body(body_def, circle));
 
     m_world.add_spring(anchor->get_p(), body_1->get_p(), Spring::UNDAMPED, spring_stiffness_infinite);
     m_world.add_spring(body_1->get_p(), body_2->get_p(), Spring::UNDAMPED, spring_stiffness_infinite);
 
     m_world.enable_gravity();
+    m_world.disable_walls();
     m_world.focus_on_position(body_2->get_p());
     m_settings.draw_body_trajectory = 1;
 }
@@ -478,54 +483,87 @@ void Application::demo_springs() {
     RigidBodyDef bodydef;
     bodydef.type = STATIC;
 
-    Vector2 placeholder(0.5 * SCENE_WIDTH, 0.75 * SCENE_HEIGHT);
     const double block_width(0.5);
     const double block_height(0.25);
-    for (unsigned i(0); i < 6; ++i) {
-        bodydef.position = placeholder + vector2_x * block_width * 2 * i;
-        Polygon box(create_box(block_width, block_height));
+    Polygon box(create_box(block_width, block_height));
+    Circle ball(0.25);
+
+    // Horizontal mass-spring systems
+    for (unsigned i(0); i < 4; ++i) {
+        Vector2 placeholder(0.6 * SCENE_WIDTH, 0.75 * SCENE_HEIGHT - block_height * i * 8);
+        bodydef.type = STATIC;
+        for (unsigned j(1); j < 6; ++j) {
+            bodydef.position = placeholder + vector2_x * block_width * 2 * j;
+            m_world.create_body(bodydef, box);
+        }
+
+        bodydef.position = placeholder + vector2_y * block_height * 2;
+        RigidBody* anchor(m_world.create_body(bodydef, box));
+
+        bodydef.position = anchor->get_p() + vector2_x * block_width * 6;
+        bodydef.type = DYNAMIC;
+        RigidBody* mobile_mass;
+        if (i < 3) {
+            mobile_mass = m_world.create_body(bodydef, ball);
+        }else {
+            mobile_mass = m_world.create_body(bodydef, create_square(block_height));
+        }
+        // Produce a natural frequency of 1 Hz
+        float stiffness(4 * PI * PI * mobile_mass->get_mass());
+        stiffness *= (1 + 10*(i-1));
+        if (i == 0) {
+            stiffness = spring_stiffness_default;
+        }else if (i == 3) {
+            stiffness = spring_stiffness_default * 5;
+        }
+        m_world.add_spring(anchor->get_p(), mobile_mass->get_p(), Spring::UNDAMPED, stiffness);
+        const Vector2 x_offset(-vector2_x * 4 * block_width);
+        mobile_mass->move(x_offset);
+    }
+
+
+    // Vertical mass-spring systems
+    for (unsigned i(0); i < 4; ++i) {
+        bodydef.position = {0.4 * SCENE_WIDTH - i * block_width * 4, 0.75 * SCENE_HEIGHT};
+        bodydef.type = STATIC;
+        RigidBody* vert_anchor(m_world.create_body(bodydef, box));
+
+        bodydef.position = vert_anchor->get_p() - vector2_y * 0.25 * SCENE_HEIGHT;
+        bodydef.type = DYNAMIC;
+        Polygon hanging_box(create_square(block_height));
+        RigidBody* hanging_mass(m_world.create_body(bodydef, hanging_box));
+
+        // Produce a natural frequency of 1 Hz
+        float stiffness(4 * PI * PI * hanging_mass->get_mass());
+        const Spring::DampingType damping((Spring::DampingType)(3 - i));
+        m_world.add_spring(vert_anchor->get_p(), hanging_mass->get_p(), damping, stiffness);
+        // Pre-load the system by pulling down the spring
+        hanging_mass->move(-vector2_y * 0.1 * SCENE_HEIGHT);
+    }
+
+
+    // Stick-and-slip
+    for (int i(-20); i < 20; ++i) {
+        Vector2 placeholder(0.5 * SCENE_WIDTH + 2 * block_width * i, 4 * block_height);
+        bodydef.position = placeholder;
+        bodydef.type = STATIC;
         m_world.create_body(bodydef, box);
     }
 
-    bodydef.position = placeholder + vector2_y * block_height * 2;
-    Polygon box(create_box(block_width, block_height));
-    RigidBody* anchor(m_world.create_body(bodydef, box));
+    bodydef.position = {0.5 * SCENE_WIDTH + 2 * 17 * block_width, 6 * block_height};
+    bodydef.type = KINEMATIC;
+    bodydef.velocity = {-0.5, 0};
+    RigidBody* tractor(m_world.create_body(bodydef, box));
 
-    bodydef.position = anchor->get_p() + vector2_x * block_width * 6;
+    bodydef.position = {0.5 * SCENE_WIDTH + 2 * 19 * block_width, tractor->get_p().y};
     bodydef.type = DYNAMIC;
-    Circle ball(0.25);
-    RigidBody* rolling_mass(m_world.create_body(bodydef, ball));
+    bodydef.velocity = vector2_zero;
+    RigidBody* pulled_mass(m_world.create_body(bodydef, box));
 
-    // Produce a natural frequency of 1 Hz
-    float stiffness(4 * PI * PI * rolling_mass->get_mass());
-    m_world.add_spring(anchor->get_p(), rolling_mass->get_p(), Spring::UNDAMPED, stiffness);
-    const Vector2 x_offset(-vector2_x * 4 * block_width);
-    rolling_mass->move(x_offset);
-
-
-    // Vertical mass-spring system
-    bodydef.position = {0.25 * SCENE_WIDTH, 0.75 * SCENE_HEIGHT};
-    bodydef.type = STATIC;
-    Polygon anchor_box(create_box(block_width, block_height));
-    RigidBody* vert_anchor(m_world.create_body(bodydef, anchor_box));
-    bodydef.position = vert_anchor->get_p() - vector2_y * 0.25 * SCENE_HEIGHT;
-    bodydef.type = DYNAMIC;
-    Polygon hanging_box(create_square(block_height));
-    RigidBody* hanging_mass(m_world.create_body(bodydef, hanging_box));
-    stiffness = 4 * PI * PI * hanging_mass->get_mass();
-    m_world.add_spring(vert_anchor->get_p(), hanging_mass->get_p(), Spring::UNDAMPED, stiffness);
-    hanging_mass->move(-vector2_y * 0.1 * SCENE_HEIGHT);
-
-    RigidBodyDef testdef;
-    testdef.position = {0.5 * SCENE_WIDTH, 0.1 * SCENE_HEIGHT};
-    Vertices points;
-    points[0] = {-0.2, 0};
-    points[1] = {0.2, 0};
-    points[2] = {0, 0.346};
-    Polygon triangle(ConvexHull{points, 3});
-    m_world.create_body(testdef, triangle);
+    m_world.add_spring(tractor->get_p(), pulled_mass->get_p(), Spring::UNDAMPED, spring_stiffness_default);
 
     m_world.enable_gravity();
+    m_world.disable_walls();
     m_settings.reset();
 }
 

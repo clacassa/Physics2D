@@ -1,4 +1,4 @@
-#include <iostream>
+#include <SDL2_gfxPrimitives.h>
 #include <vector>
 #include "render.h"
 #include "vector2.h"
@@ -168,6 +168,18 @@ void render_rectangle(SDL_Renderer* renderer, Vector2 center, double w, double h
     SDL_RenderDrawRectF(renderer, &rect);
 }
 
+void render_polygon_fill(SDL_Renderer* renderer, Vector2* vertices, uint8_t n, uint32_t color) {
+    Sint16 vx[n];
+    Sint16 vy[n];
+    for (uint8_t i (0); i < n; ++i) {
+        vertices[i] = camera::world_to_screen(vertices[i]);
+        vx[i] = vertices[i].x;
+        vy[i] = vertices[i].y;
+    }
+
+    filledPolygonColor(renderer, vx, vy, n, color);
+}
+
 Vector2 camera::world_to_screen(Vector2 world_p) {
     Vector2 screen_p;
     world_p -= camera::position;
@@ -204,4 +216,9 @@ void camera::zoom_in() {
 
 void camera::zoom_out() {
     RENDER_SCALE /= 1.1;
+}
+
+bool camera::is_on_screen(Vector2 world_p) {
+    Vector2 p(camera::world_to_screen(world_p));
+    return p.x >= 0 && p.x < SCREEN_WIDTH && p.y >= 0 && p.y < SCREEN_HEIGHT;
 }

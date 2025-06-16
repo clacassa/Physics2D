@@ -225,6 +225,11 @@ void RigidBody::draw(SDL_Renderer* renderer) {
         }
     }
 
+    auto aabb(m_shape->get_aabb());
+    if (!camera::is_on_screen(aabb.min) && !camera::is_on_screen(aabb.max)) {
+        return;
+    }
+
     SDL_Color color;
     color.r = m_color.r * 0.5;
     color.g = m_color.g * 0.5;
@@ -277,7 +282,8 @@ void RigidBody::draw(SDL_Renderer* renderer) {
         m_shape->draw(renderer, color, false);
 
         // Fill the inside
-        // color.a = m_color.a * 0.1;
+        color.a = m_color.a * 0.1;
+        m_shape->draw(renderer, color, true);
         // SDL_SetRenderDrawColor(renderer, m_color.r, m_color.g, m_color.b, 0.1 * m_color.a);
         // const Vector2 edge(C - B);
         // const double len(edge.norm());

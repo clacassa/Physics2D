@@ -25,7 +25,7 @@ endif
 ifeq ($(OS), Windows_NT)
 	PLATFORM_MSG = "MinGW"
 	INCLUDE += `pkg-config --cflags sdl2`
-	LDLIBS = `pkg-config --libs sdl2` -mconsole
+	LDLIBS = `pkg-config --libs sdl2` -lSDL2_gfx -mconsole
 endif
 
 #------------------------

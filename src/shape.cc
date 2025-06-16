@@ -145,6 +145,16 @@ void Polygon::draw(SDL_Renderer* renderer, const SDL_Color& color, bool fill) co
         const Vector2 b(m_vertices[(i + 1) % m_count]);
         render_line(renderer, a, b);
     }
+
+    if (fill) {
+        Vector2 vertices[m_count];
+        for (uint8_t i(0); i < m_count; ++i) {
+            vertices[i] = m_vertices[i];
+        }
+
+        uint32_t c(color.r + (color.g << 8) + (color.b << 16) + (color.a << 24));
+        render_polygon_fill(renderer, vertices, m_count, c);
+    }
 }
 
 void Polygon::compute_centroid() {
