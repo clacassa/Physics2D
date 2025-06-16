@@ -1,4 +1,5 @@
 #include <SDL_hints.h>
+#include <iostream>
 #include "world.h"
 #include "rigid_body.h"
 #include "shape.h"
@@ -18,6 +19,7 @@ World::World()
     focus(0), 
     m_force_fields({Vector2{0.0, -g * gravity_enabled}, Vector2{0.0, 0.0}, Vector2{0.0, 0.0}})
 {
+    m_bodies.reserve(500);
     body_count = m_bodies.size();
     m_profile.reset();
 }
@@ -31,8 +33,8 @@ void World::step(double dt, int substeps, Settings& settings, bool perft) {
         RigidBodyDef def;
         def.position = {0.5 * SCENE_WIDTH, 0.5 * SCENE_HEIGHT};
         def.velocity = {1, 0};
-        // Shape* ball(create_circle(0.1));
-        // create_body(def, ball);
+        Circle ball(0.1);
+        create_body(def, ball);
     }
 
     m_profile.reset();
