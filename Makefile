@@ -19,13 +19,13 @@ IMGUI_OBJ = $(patsubst $(IMGUI_DIR)%.cpp, $(OBJ_DIR)%.o, $(IMGUI_SRC))
 ifeq ($(UNAME_S), Linux)
 	PLATFORM_MSG = "Linux"
 	INCLUDE += `pkg-config --cflags sdl2`
-	LDLIBS = `pkg-config --libs sdl2`
+	LDLIBS = `pkg-config --libs sdl2 SDL2_gfx`
 endif
 
 ifeq ($(OS), Windows_NT)
 	PLATFORM_MSG = "MinGW"
 	INCLUDE += `pkg-config --cflags sdl2`
-	LDLIBS = `pkg-config --libs sdl2` -lSDL2_gfx -mconsole
+	LDLIBS = `pkg-config --libs sdl2 SDL2_gfx` -mconsole
 endif
 
 #------------------------
