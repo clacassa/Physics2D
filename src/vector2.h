@@ -17,6 +17,7 @@ struct Vector2 {
 
     double norm() const;
     Vector2 normal() const;
+    Vector2 perp() const;
     Vector2 normalized() const;
 
     const Vector2 operator+(const Vector2& v) const;

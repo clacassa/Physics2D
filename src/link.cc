@@ -56,7 +56,7 @@ void Spring::apply() {
 }
 
 void Spring::draw(SDL_Renderer* renderer) {
-    SDL_SetRenderDrawColor(renderer, 0, 255, 255, 255);
+    SDL_SetRenderDrawColor(renderer, spring_color.r, spring_color.g, spring_color.b, spring_color.a);
     // render_line(renderer, B->get_p().x, B->get_p().y, A->get_p().x, A->get_p().y);
     // if (A->is_movable())
     //     A->draw_trace(renderer);

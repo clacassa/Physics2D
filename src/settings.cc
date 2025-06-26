@@ -8,6 +8,7 @@ Settings::Settings() {
 void Settings::reset() {
     slow_motion = 0;
     draw_body_trajectory = 0;
+    draw_center_of_mass = 0;
 #ifdef DEBUG
     highlight_collisions = 1;
     draw_contact_points = 1;

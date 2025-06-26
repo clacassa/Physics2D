@@ -5,6 +5,7 @@
 #include "narrow_phase.h"
 #include "collision.h"
 #include "shape.h"
+#include "transform2.h"
 #include "utils.h"
 #include "render.h"
 #include "config.h"
@@ -226,7 +227,9 @@ void RigidBody::draw(SDL_Renderer* renderer) {
     }
 
     auto aabb(m_shape->get_aabb());
-    if (!camera::is_on_screen(aabb.min) && !camera::is_on_screen(aabb.max)) {
+    if (!camera::is_on_screen(aabb.min) && !camera::is_on_screen(aabb.max) &&
+        !camera::is_on_screen({aabb.min.x, aabb.max.y}) &&
+        !camera::is_on_screen({aabb.max.x, aabb.min.y}) && !camera::is_on_screen(m_pos)) {
         return;
     }
 
@@ -266,7 +269,7 @@ void RigidBody::draw(SDL_Renderer* renderer) {
         }
     }else {
         if (m_type == STATIC && m_enabled) {
-            SDL_SetRenderDrawColor(renderer, 0.75 * m_color.r, 0.75 * m_color.g, 0.75 * m_color.b, m_color.a);
+            SDL_SetRenderDrawColor(renderer, m_color.r, m_color.g, m_color.b, m_color.a);
 
             const Vertices vertices(m_shape->get_vertices());
             if (m_shape->get_count() == 4) {
@@ -284,15 +287,6 @@ void RigidBody::draw(SDL_Renderer* renderer) {
         // Fill the inside
         color.a = m_color.a * 0.1;
         m_shape->draw(renderer, color, true);
-        // SDL_SetRenderDrawColor(renderer, m_color.r, m_color.g, m_color.b, 0.1 * m_color.a);
-        // const Vector2 edge(C - B);
-        // const double len(edge.norm());
-        // const Vector2 n(edge.normalized());
-        // const unsigned width_px((len * RENDER_SCALE));
-        // const double dw(1 / RENDER_SCALE);
-        // for (unsigned i(0); i < width_px; ++i) {
-        //     render_line(renderer, B + n * i * dw, A + n * i * dw);
-        // }
     }
 
 #ifdef DEBUG
@@ -329,6 +323,13 @@ void RigidBody::draw_bounding_box(SDL_Renderer* renderer) {
     render_line(renderer, {aabb.max.x, aabb.min.y}, aabb.max);
     render_line(renderer, aabb.max, {aabb.min.x, aabb.max.y});
     render_line(renderer, {aabb.min.x, aabb.max.y}, aabb.min);
+}
+
+void RigidBody::draw_com(SDL_Renderer* renderer) {
+    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+    render_line(renderer, m_pos, transform2(vector2_x / RENDER_SCALE * 10, m_pos, m_theta));
+    SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+    render_line(renderer, m_pos, transform2(vector2_y / RENDER_SCALE * 10, m_pos, m_theta));
 }
 
 void RigidBody::draw_forces(SDL_Renderer* renderer) const {

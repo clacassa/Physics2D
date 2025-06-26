@@ -1,7 +1,9 @@
+#include <SDL_keycode.h>
 #include <imgui.h>
 #include <imgui_impl_sdl2.h>
 #include <imgui_impl_sdlrenderer2.h>
 #include <iostream>
+#include <stdlib.h>
 #include <string>
 #include "application.h"
 #include "editor.h"
@@ -42,6 +44,21 @@ Application::Application(SDL_Window* window, SDL_Renderer* renderer, double w, d
     camera::translate_screen_x(SCREEN_WIDTH * 0.5);
     camera::translate_screen_y(SCREEN_HEIGHT * 0.5);
     m_editor.update_grid();
+
+    m_world.disable_walls();
+    RigidBodyDef def;
+    def.position = {0.5 * SCENE_WIDTH, -0.25};
+    def.type = STATIC;
+    Polygon h_wall_box(create_box(0.5 * SCENE_WIDTH, 0.25));
+    m_world.create_body(def, h_wall_box);
+    def.position = {0.5 * SCENE_WIDTH, SCENE_HEIGHT + 0.25};
+    m_world.create_body(def, h_wall_box);
+
+    Polygon v_wall_box(create_box(0.25, 0.5 * SCENE_HEIGHT));
+    def.position = {-0.25, SCENE_HEIGHT * 0.5};
+    m_world.create_body(def, v_wall_box);
+    def.position = {SCENE_WIDTH + 0.5, 0.5 * SCENE_HEIGHT};
+    m_world.create_body(def, v_wall_box);
 
     SDL_SetCursor(m_crosshair_cursor);
 }
@@ -152,6 +169,8 @@ int Application::run() {
 }
 
 void Application::parse_event(SDL_Event& event) {
+    body_id_changed = 0;
+
     ImGui_ImplSDL2_ProcessEvent(&event);
     const ImGuiIO io(ImGui::GetIO());
 
@@ -344,6 +363,21 @@ void Application::parse_keybd_event(SDL_Event& keybd_event) {
                 m_world.destroy_body(body);
             }
             break;
+        case SDLK_RETURN:
+        {
+            RigidBodyDef def;
+            def.position = {SCENE_WIDTH * 0.5, SCENE_HEIGHT * 0.5};
+            Vertices points;
+            points[0] = {-1, 1};
+            points[1] = {-1.1, 0};
+            points[2] = {0, -0.35};
+            points[3] = {2, 0.5};
+            ConvexHull hull;
+            hull.points = points;
+            hull.count = 4;
+            Polygon poly(hull);
+            m_world.create_body(def, poly);
+        }
     }
 }
 
@@ -355,7 +389,7 @@ void Application::parse_mouse_button_event(SDL_Event& mouse_event) {
     
     switch (mouse_event.button.button) {
         case SDL_BUTTON_LEFT:
-            m_world.focus_on_position(mouse);
+            body_id_changed = m_world.focus_on_position(mouse);
             break;
         case SDL_BUTTON_RIGHT:
             if (!m_ctrl.editor.adding_spring) {
@@ -428,7 +462,7 @@ void Application::demo_collision() {
 
     m_world.disable_gravity();
     m_world.disable_walls();
-    m_settings.reset();
+    m_settings.draw_body_trajectory = 0;
 }
 
 void Application::demo_stacking() {
@@ -437,7 +471,7 @@ void Application::demo_stacking() {
     body_def.type = STATIC;
 
     const double block_size(0.1);
-    Polygon ground_box(create_box(block_size * 20, 0.1));
+    Polygon ground_box(create_box(block_size * 40, 0.1));
     RigidBody* ground(m_world.create_body(body_def, ground_box));
 
     body_def.type = DYNAMIC;
@@ -451,7 +485,7 @@ void Application::demo_stacking() {
     }
     m_world.enable_gravity();
     m_world.disable_walls();
-    m_settings.reset();
+    m_settings.draw_body_trajectory = 0;
 }
 
 void Application::demo_double_pendulum() {
@@ -564,7 +598,7 @@ void Application::demo_springs() {
 
     m_world.enable_gravity();
     m_world.disable_walls();
-    m_settings.reset();
+    m_settings.draw_body_trajectory = 0;
 }
 
 void Application::show_menubar() {
@@ -626,22 +660,29 @@ void Application::show_property_editor(bool* p_open) {
     }
 
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2, 2));
-    static ImGuiTableFlags flags(ImGuiTableFlags_BordersV | ImGuiTableFlags_BordersOuterH | ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg | ImGuiTableFlags_NoBordersInBody);
+    static ImGuiTableFlags flags(ImGuiTableFlags_BordersV | ImGuiTableFlags_BordersOuterH | ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg | ImGuiTableFlags_NoBordersInBody |
+    ImGuiTableFlags_ScrollY
+    );
+    if (body_id_changed) {
+        ImGui::SetNextWindowScroll(ImVec2(-1.0, (ImGui::GetTextLineHeightWithSpacing() + 4) * m_world.get_focus()));
+    }
     if (ImGui::BeginTable("###split", 2, flags)) {
         ImGui::TableSetupScrollFreeze(0, 1);
         ImGui::TableSetupColumn("Name");
         ImGui::TableSetupColumn("Value");
         ImGui::TableHeadersRow();
 
-        show_placeholder_object();
+        for (size_t i(0); i < m_world.get_body_count(); ++i) {
+            show_placeholder_object(i);
+        }
         ImGui::EndTable();
     }
     ImGui::PopStyleVar();
     ImGui::End();
 }
 
-void Application::show_placeholder_object() {
-    RigidBody* obj(m_world.get_focused_body());
+void Application::show_placeholder_object(const size_t id) {
+    RigidBody* obj(m_world.get_body_from_id(id));
     if (!obj) {
         return;
     }
@@ -650,12 +691,22 @@ void Application::show_placeholder_object() {
     ImGui::TableNextRow();
     ImGui::TableSetColumnIndex(0);
     ImGui::AlignTextToFramePadding();
-    ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
+
+    if (body_id_changed) {
+        if (obj == m_world.get_focused_body()) {
+            ImGui::SetNextItemOpen(true);
+            // ImGui::SetScrollY(ImGui::GetTextLineHeightWithSpacing() * id);
+        }else {
+            ImGui::SetNextItemOpen(false);
+        }
+    }
     bool node_open(ImGui::TreeNode("Name", "%p", obj));
     ImGui::TableSetColumnIndex(1);
-    ImGui::Text(obj->get_shape()->get_type() == POLYGON ?  "Box" : "Ball");
+    ImGui::Text(obj->get_shape()->get_type() == POLYGON ?  "Polygon" : "Ball");
 
     if (node_open) {
+        m_world.focus_from_id(id);
+
         const unsigned n_rows(11);
         const char* fields[n_rows] = {
             "Mass       [kg]",
@@ -759,6 +810,7 @@ void Application::show_settings_panel() {
     ImGui::BeginGroup();
     ImGui::Checkbox("Slow motion (x0.1)", &m_settings.slow_motion);
     ImGui::Checkbox("Track body motion", &m_settings.draw_body_trajectory);
+    ImGui::Checkbox("Draw Center of mass", &m_settings.draw_center_of_mass);
     ImGui::Checkbox("Highlight collisions", &m_settings.highlight_collisions);
     ImGui::Checkbox("Draw contact points", &m_settings.draw_contact_points);
     ImGui::Checkbox("Draw collision normal", &m_settings.draw_collision_normal);

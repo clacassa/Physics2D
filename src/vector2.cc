@@ -13,11 +13,17 @@ double Vector2::norm() const {
     return sqrt(x * x + y * y);
 }
 
+// rotation of -90° + normalization
 Vector2 Vector2::normal() const {
     const double m_norm(norm());
     if (m_norm == 0)
         return {0, 0};
     return {y / m_norm, -x / m_norm};
+}
+
+// rotation of -90° without normalization
+Vector2 Vector2::perp() const {
+    return {y, -x};
 }
 
 Vector2 Vector2::normalized() const {

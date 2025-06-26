@@ -2,6 +2,7 @@
 #define APPLICATION_H
 
 #include <SDL.h>
+#include <cstddef>
 #include "control.h"
 #include "world.h"
 #include "editor.h"
@@ -31,6 +32,8 @@ private:
     double frame_time;
     double time_step;
 
+    bool body_id_changed;
+
     // Events
     void parse_event(SDL_Event& event);
     void parse_keybd_event(SDL_Event& keybd_event);
@@ -47,7 +50,7 @@ private:
     // GUI
     void show_menubar();
     void show_main_overlay(const float avg_fps);
-    void show_placeholder_object();
+    void show_placeholder_object(const size_t id);
     void show_property_editor(bool* p_open);
     void show_settings_panel();
     void show_help_panel();

@@ -1,6 +1,7 @@
 #ifndef WORLD_H
 #define WORLD_H
 
+#include <cstddef>
 #include <vector>
 #include <array>
 #include <string>
@@ -32,11 +33,14 @@ public:
     std::string dump_selected_body() const;
     double total_energy() const;
 
-    void focus_next();
-    void focus_prev();
-    void focus_on_position(Vector2 p);
+    bool focus_next();
+    bool focus_prev();
+    bool focus_on_position(Vector2 p);
+    bool focus_from_id(const size_t id);
 
+    inline size_t get_focus() const { return focus; }
     RigidBody* get_focused_body() const;
+    RigidBody* get_body_from_id(const size_t id) const;
 
     inline unsigned get_body_count() const { return body_count; }
     inline void toggle_gravity() { gravity_enabled = !gravity_enabled; }

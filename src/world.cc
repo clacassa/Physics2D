@@ -1,5 +1,7 @@
 #include <SDL_hints.h>
+#include <cstddef>
 #include <iostream>
+#include <cassert>
 #include "world.h"
 #include "rigid_body.h"
 #include "shape.h"
@@ -53,10 +55,6 @@ void World::step(double dt, int substeps, Settings& settings, bool perft) {
     m_profile.broad_phase = m_profile.pairs;
 #endif
 
-    for (auto& body : m_bodies) {
-        body->reset_color();
-    }
-
     destroy_contacts();
     destroy_proxys();
 
@@ -70,10 +68,14 @@ void World::step(double dt, int substeps, Settings& settings, bool perft) {
                 m_profile.ode += ode_timer.get_microseconds();
             }
         }
-        
+
         for (auto& pair : pairs) {
             RigidBody* a(pair[0]);
             RigidBody* b(pair[1]);
+
+            if (a->get_type() == STATIC && b->get_type() == STATIC) {
+                continue;
+            }
 
             AABB_timer.reset();
             const Shape* shape_a(a->get_shape());
@@ -147,10 +149,17 @@ void World::render(SDL_Renderer* renderer, bool running, Settings& settings) {
 
     for (auto& body : m_bodies) {
         body->draw(renderer);
+        body->reset_color();
+    }
+
+    if (settings.draw_center_of_mass) {
+        for (auto body :m_bodies) {
+            body->draw_com(renderer);
+        }
     }
 
     if (settings.draw_bounding_boxes) {
-        SDL_SetRenderDrawColor(renderer, 102, 102, 255, 255);
+        SDL_SetRenderDrawColor(renderer, 178, 102, 255, 255);
         for (auto body : m_bodies) {
             body->draw_bounding_box(renderer);
         }
@@ -305,24 +314,28 @@ double World::total_energy() const {
     return energy;
 }
 
-void World::focus_next() {
+bool World::focus_next() {
     if (body_count == 0) {
-        return;
+        return false;
     }
 
+    const size_t previous_focus(focus);
     m_bodies[focus]->reset_color();
     ++focus;
     if (focus >= body_count) {
         focus = 0;
     }
     m_bodies[focus]->colorize(focus_color);
+
+    return previous_focus != focus;
 }
 
-void World::focus_prev() {
+bool World::focus_prev() {
     if (body_count == 0) {
-        return;
+        return false;
     }
 
+    const size_t previous_focus(focus);
     m_bodies[focus]->reset_color();
     if (focus == 0) {
         focus = body_count - 1;
@@ -330,12 +343,15 @@ void World::focus_prev() {
         --focus;
     }
     m_bodies[focus]->colorize(focus_color);
+
+    return previous_focus != focus;
 }
 
-void World::focus_on_position(Vector2 p) {
+bool World::focus_on_position(Vector2 p) {
     if (body_count > 0) {
         m_bodies[focus]->reset_color();
     }
+    const size_t previous_focus(focus);
     for (size_t i(0); i < body_count; ++i) {
         if (m_bodies[i]->get_shape()->contains_point(p)) {
             focus = i;
@@ -343,6 +359,18 @@ void World::focus_on_position(Vector2 p) {
             break;
         }
     }
+
+    return previous_focus != focus;
+}
+
+bool World::focus_from_id(const size_t id) {
+   assert(id >= 0 && id < body_count);
+   if (body_count > 0) {
+       m_bodies[focus]->reset_color();
+   }
+   const size_t previous_focus(focus);
+   focus = id;
+   return previous_focus != focus;
 }
 
 RigidBody* World::get_focused_body() const {
@@ -350,6 +378,11 @@ RigidBody* World::get_focused_body() const {
         return m_bodies[focus];
     }
     return nullptr;
+}
+
+RigidBody* World::get_body_from_id(const size_t id) const {
+    assert(id >= 0 && id < body_count);
+    return m_bodies[id];
 }
 
 void World::apply_forces() {

@@ -14,10 +14,10 @@ enum BodyType {
     DYNAMIC
 };
 
-constexpr double steel_density(7930 * 0.01); // kg / m^3 -> We are in 2D so factor 0.01 (1cm thick)
+constexpr double steel_density(7930 * 0.1); // kg / m^3 -> We are in 2D so factor 0.01 (1cm thick)
 constexpr double steel_restitution(0.78 * 0.75); // Restitution is reduced for tuning behavior
-constexpr double steel_static_friction(0.78);
-constexpr double steel_dynamic_friction(0.42);
+constexpr double steel_static_friction(0.78 * 0.75);
+constexpr double steel_dynamic_friction(0.42 * 0.75);
 
 struct RigidBodyDef {
     Vector2 position;
@@ -54,6 +54,7 @@ public:
     void draw(SDL_Renderer* renderer);
     void draw_trace(SDL_Renderer* renderer, bool update_trace);
     void draw_bounding_box(SDL_Renderer* renderer);
+    void draw_com(SDL_Renderer* renderer);
     void draw_forces(SDL_Renderer* renderer) const;
     void colorize(const SDL_Color color);
     void reset_color();
