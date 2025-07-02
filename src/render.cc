@@ -159,12 +159,12 @@ void render_circle_fill_raster(SDL_Renderer* renderer, Vector2 center, double ra
     }
 }
 
-void render_rectangle(SDL_Renderer* renderer, Vector2 center, double w, double h) {
+void render_rectangle(SDL_Renderer* renderer, Vector2 center, float w, float h) {
     Vector2 px(camera::world_to_screen(center));
     w *= RENDER_SCALE;
     h *= RENDER_SCALE;
 
-    SDL_FRect rect{(float)px.x - w * 0.5, (float)px.y - h * 0.5, (float)w + 1, (float)h + 1};
+    SDL_FRect rect{(float)px.x - w * 0.5f, (float)px.y - h * 0.5f, w + 1, h + 1};
     SDL_RenderDrawRectF(renderer, &rect);
 }
 

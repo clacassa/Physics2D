@@ -26,7 +26,7 @@ void render_line(SDL_Renderer* renderer, Vector2 p1, Vector2 p2);
 void render_circle(SDL_Renderer* renderer, Vector2 center, double radius);
 void render_circle_fill(SDL_Renderer*, Vector2 center, double radius);
 void render_circle_fill_raster(SDL_Renderer* renderer, Vector2 center, double radius);
-void render_rectangle(SDL_Renderer* renderer, Vector2 center, double w, double h);
+void render_rectangle(SDL_Renderer* renderer, Vector2 center, float w, float h);
 void render_polygon_fill(SDL_Renderer* renderer, Vector2* vertices, uint8_t n, uint32_t color);
 
 /**
