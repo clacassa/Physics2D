@@ -149,7 +149,7 @@ int Application::run() {
         }
 
         // ImGui::ShowDemoWindow();
-        ImPlot::ShowDemoWindow();
+        // ImPlot::ShowDemoWindow();
         // show_menubar();
         show_main_overlay(avg_fps);
         show_settings_panel();
