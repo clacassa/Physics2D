@@ -130,11 +130,14 @@ void Editor::update_grid() {
 
 void Editor::render_grid() {
     // Render the nodes
+    unsigned i, j = 0;
     SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 127);
     for (auto row : m_first_quad) {
         for (auto node : row) {
             render_point(m_renderer, node);
+            ++j;
         }
+        ++i;
     }
     for (auto row : m_second_quad) {
         for (auto node : row) {

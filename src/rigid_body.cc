@@ -13,10 +13,10 @@
 
 RigidBody::RigidBody(const RigidBodyDef& def, const Shape& shape, const size_t id)
 :
-    m_pos(def.position),
     m_vel(def.velocity),
-    m_theta(def.rotation),
+    m_pos(def.position),
     m_omega(def.angular_velocity),
+    m_theta(def.rotation),
     m_density(def.density),
     m_restitution(def.restitution),
     m_type(def.type),
@@ -58,8 +58,8 @@ RigidBody::RigidBody(const RigidBodyDef& def, const Shape& shape, const size_t i
 
 RigidBody::RigidBody(const Shape& shape, const size_t id)
 :
-    m_theta(0),
     m_omega(0),
+    m_theta(0),
     m_density(steel_density),
     m_restitution(steel_restitution),
     m_type(DYNAMIC),

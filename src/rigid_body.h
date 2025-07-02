@@ -74,11 +74,14 @@ public:
     inline double get_inv_I() const { return m_inv_inertia; }
     inline double get_cor() const { return m_restitution; }
     inline BodyType get_type() const { return m_type; }
+    inline void set_type(const BodyType type) { m_type = type; }
     inline bool is_static() const { return m_type == STATIC; }
     inline bool is_dynamic() const { return m_type == DYNAMIC; }
     inline bool is_enabled() const { return m_enabled; }
     inline Shape* get_shape() const { return m_shape; }
     inline ShapeType get_shape_type() const { return m_shape->get_type(); }
+    inline unsigned get_id() const { return m_id; }
+    inline auto get_pos_curve() const { return track; }
 
     void handle_wall_collisions();
 
@@ -111,8 +114,9 @@ protected:
 
     Shape* m_shape;
 
-    size_t max_track_length = 1e3;
+    size_t max_track_length = 2e3;
     std::deque<Vector2> track;
+
     SDL_Color m_color;
 
     size_t m_id;
