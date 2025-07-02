@@ -12,13 +12,14 @@
 #include "render.h"
 #include "settings.h"
 #include "config.h"
+#include "vector2.h"
 
 World::World()
 :   gravity_enabled(true),
     walls_enabled(true),
-    air_friction_enabled(false),
+    air_friction_enabled(0),
     body_count(0),
-    focus(0), 
+    focus(-1),
     m_force_fields({Vector2{0.0, -g * gravity_enabled}, Vector2{0.0, 0.0}, Vector2{0.0, 0.0}})
 {
     m_bodies.reserve(500);
@@ -60,6 +61,9 @@ void World::step(double dt, int substeps, Settings& settings, bool perft) {
 
     for (int i(0); i < substeps; ++i) {
         apply_forces();
+        for (auto spring : m_springs) {
+            spring->apply(dt);
+        }
         for (auto body : m_bodies) {
             if (body->is_enabled()) {
                 Timer ode_timer;
@@ -140,7 +144,7 @@ void World::render(SDL_Renderer* renderer, bool running, Settings& settings) {
         render_line(renderer, {SCENE_WIDTH, SCENE_HEIGHT}, {0, SCENE_HEIGHT});
     }
 
-    if (body_count > 0) {
+    if (body_count > 0 && focus >= 0) {
         m_bodies[focus]->colorize(focus_color);
         if (settings.draw_body_trajectory) {
             m_bodies[focus]->draw_trace(renderer, running);
@@ -262,7 +266,7 @@ void World::destroy_all() {
     }
     m_bodies.clear();
     body_count = 0;
-    focus = 0;
+    focus = -1;
 
     destroy_contacts();
     destroy_proxys();
@@ -277,27 +281,27 @@ void World::destroy_all() {
 
 std::string World::dump_profile() const {
     std::string perf;
-    perf += ("Time per step : " + truncate_to_string(m_profile.step) + " us\n")
-          + ("ODE solve time : " + truncate_to_string(m_profile.ode) + " us\n")
-          + ("Collisions time : " + truncate_to_string(m_profile.collisions) + " us\n")
-          + ("  > Broad phase : " + truncate_to_string(m_profile.broad_phase) + " us\n")
-          + ("    > Pairs : " + truncate_to_string(m_profile.pairs) + " us\n")
-          + ("    > AABBs : " + truncate_to_string(m_profile.AABBs) + " us\n")
-          + ("  > Narrow phase : " + truncate_to_string(m_profile.narrow_phase) + " us\n")
+    perf += ("Time per step : " + truncate_to_string(m_profile.step / 1e3) + " ms\n")
+          + ("ODE solve time : " + truncate_to_string(m_profile.ode / 1e3) + " ms\n")
+          + ("Collisions time : " + truncate_to_string(m_profile.collisions / 1e3) + " ms\n")
+          + ("  > Broad phase : " + truncate_to_string(m_profile.broad_phase / 1e3) + " ms\n")
+          + ("    > Pairs : " + truncate_to_string(m_profile.pairs / 1e3) + " ms\n")
+          + ("    > AABBs : " + truncate_to_string(m_profile.AABBs / 1e3) + " ms\n")
+          + ("  > Narrow phase : " + truncate_to_string(m_profile.narrow_phase / 1e3) + " ms\n")
 #ifdef GJK_EPA
-          + ("    > GJK : " + truncate_to_string(m_profile.gjk_collide) + " us\n")
-          + ("    > EPA : " + truncate_to_string(m_profile.epa) + " us\n")
+          + ("    > GJK : " + truncate_to_string(m_profile.gjk_collide / 1e3) + " ms\n")
+          + ("    > EPA : " + truncate_to_string(m_profile.epa / 1e3) + " ms\n")
 #endif
-          + ("    > Clip : " + truncate_to_string(m_profile.clip) + " us\n")
-          + ("  > Response phase : " + truncate_to_string(m_profile.response_phase) + " us\n")
-          + ("Walls : " + truncate_to_string(m_profile.walls) + " us\n");
+          + ("    > Clip : " + truncate_to_string(m_profile.clip / 1e3) + " ms\n")
+          + ("  > Response phase : " + truncate_to_string(m_profile.response_phase / 1e3) + " ms\n")
+          + ("Walls : " + truncate_to_string(m_profile.walls / 1e3) + " ms\n");
 
     return perf;
 }
 
 std::string World::dump_selected_body() const {
     std::string body_data;
-    if (body_count > 0) {
+    if (body_count > 0 && focus >= 0) {
         body_data = m_bodies[focus]->dump(gravity_enabled);
     }
     return body_data;
@@ -319,8 +323,10 @@ bool World::focus_next() {
         return false;
     }
 
-    const size_t previous_focus(focus);
-    m_bodies[focus]->reset_color();
+    const int previous_focus(focus);
+    if (body_count > 0 && focus >= 0) {
+        m_bodies[focus]->reset_color();
+    }
     ++focus;
     if (focus >= body_count) {
         focus = 0;
@@ -335,9 +341,11 @@ bool World::focus_prev() {
         return false;
     }
 
-    const size_t previous_focus(focus);
-    m_bodies[focus]->reset_color();
-    if (focus == 0) {
+    const int previous_focus(focus);
+    if (body_count > 0 && focus >= 0) {
+        m_bodies[focus]->reset_color();
+    }
+    if (focus <= 0) {
         focus = body_count - 1;
     }else {
         --focus;
@@ -348,10 +356,10 @@ bool World::focus_prev() {
 }
 
 bool World::focus_on_position(Vector2 p) {
-    if (body_count > 0) {
+    if (body_count > 0 && focus >= 0) {
         m_bodies[focus]->reset_color();
     }
-    const size_t previous_focus(focus);
+    const int previous_focus(focus);
     for (size_t i(0); i < body_count; ++i) {
         if (m_bodies[i]->get_shape()->contains_point(p)) {
             focus = i;
@@ -363,26 +371,74 @@ bool World::focus_on_position(Vector2 p) {
     return previous_focus != focus;
 }
 
-bool World::focus_from_id(const size_t id) {
-   assert(id >= 0 && id < body_count);
-   if (body_count > 0) {
+bool World::focus_at(const int index) {
+    if (index == -1) {
+        focus = -1;
+        return true;
+    }
+
+   assert(index >= 0 && index < body_count);
+   if (body_count > 0 && focus >= 0) {
        m_bodies[focus]->reset_color();
    }
-   const size_t previous_focus(focus);
-   focus = id;
+   const int previous_focus(focus);
+   focus = index;
    return previous_focus != focus;
 }
 
+bool World::focus_body(const RigidBody* body) {
+    bool focus_changed(0);
+    for (unsigned i(0); i < body_count; ++i) {
+        if (body == m_bodies[i]) {
+            if (focus != (int)i) {
+                focus_changed = 1;
+            }
+            focus = i;
+            break;
+        }
+    }
+    return focus_changed;
+}
+
 RigidBody* World::get_focused_body() const {
-    if (body_count > 0) {
+    if (body_count > 0 && focus >= 0) {
         return m_bodies[focus];
     }
     return nullptr;
 }
 
-RigidBody* World::get_body_from_id(const size_t id) const {
-    assert(id >= 0 && id < body_count);
-    return m_bodies[id];
+RigidBody* World::get_body_at(const size_t index) const {
+    assert(index >= 0 && index < body_count);
+    return m_bodies[index];
+}
+
+Spring* World::get_spring_from_mouse(Vector2 p) {
+    for (auto spring : m_springs) {
+        const Vector2 axis(spring->get_axis());
+        const Vector2 n(axis.normal());
+        const Vector2 p1(spring->get_anchor());
+        const Vector2 p2(p1 - axis);
+        const double w(0.125); // 20 pixels wide hitbox
+        Vertices points = {
+            p1 - n * w,
+            p2 - n * w,
+            p2 + n * w,
+            p1 + n * w
+        };
+        Polygon hitbox({points, 4});
+        if (hitbox.contains_point(p)) {
+            return spring;
+        }
+    }
+    return nullptr;
+}
+
+Spring* World::get_spring_at(const size_t index) const {
+    assert(index >= 0);
+    if (index < m_springs.size()) {
+        return m_springs[index];
+    }
+    return nullptr;
 }
 
 void World::apply_forces() {
@@ -391,9 +447,9 @@ void World::apply_forces() {
         if (gravity_enabled && body->is_enabled() && body->is_dynamic()) {
             body->subject_to_force({0.0, -body->get_mass() * g}, body->get_p());
         }
-    }
-    for (auto spring : m_springs) {
-        spring->apply();
+        if (air_friction_enabled && body->is_enabled() && body->is_dynamic()) {
+            body->subject_to_force(-body->get_v() * 10 * air_viscosity, body->get_p());
+        }
     }
 }
 

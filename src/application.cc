@@ -1,7 +1,10 @@
 #include <SDL_keycode.h>
+#include <cmath>
+#include <cstddef>
 #include <imgui.h>
 #include <imgui_impl_sdl2.h>
 #include <imgui_impl_sdlrenderer2.h>
+#include <implot.h>
 #include <iostream>
 #include <stdlib.h>
 #include <string>
@@ -33,6 +36,7 @@ Application::Application(SDL_Window* window, SDL_Renderer* renderer, double w, d
     // ImGui initialisation
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    ImPlot::CreateContext();
     ImGui_ImplSDL2_InitForSDLRenderer(m_window, m_renderer);
     ImGui_ImplSDLRenderer2_Init(m_renderer);
 
@@ -78,6 +82,7 @@ Application::~Application() {
 
     ImGui_ImplSDLRenderer2_Shutdown();
     ImGui_ImplSDL2_Shutdown();
+    ImPlot::DestroyContext();
     ImGui::DestroyContext();
 }
 
@@ -144,11 +149,18 @@ int Application::run() {
         }
 
         // ImGui::ShowDemoWindow();
+        ImPlot::ShowDemoWindow();
         // show_menubar();
         show_main_overlay(avg_fps);
         show_settings_panel();
-        bool property_open(true);
-        show_property_editor(&property_open);
+        show_property_editor();
+        if (m_settings.plot_position || m_settings.plot_velocity) {
+            show_obj_dynamics_plot(m_world.get_focused_body());
+        }
+        if (m_settings.plot_phase_plane) {
+            show_osc_dynamics_plot(spring_ptr);
+        }
+        body_id_changed = 0;
         ImGui::Render();
 
         // Render additional platform windows
@@ -169,8 +181,6 @@ int Application::run() {
 }
 
 void Application::parse_event(SDL_Event& event) {
-    body_id_changed = 0;
-
     ImGui_ImplSDL2_ProcessEvent(&event);
     const ImGuiIO io(ImGui::GetIO());
 
@@ -223,19 +233,28 @@ void Application::parse_keybd_event(SDL_Event& keybd_event) {
             break;
         case SDLK_0:
             m_world.destroy_all();
+            spring_ptr = nullptr;
             demo_stacking();
             break;
         case SDLK_9:
             m_world.destroy_all();
+            spring_ptr = nullptr;
             demo_collision();
             break;
         case SDLK_8:
             m_world.destroy_all();
+            spring_ptr = nullptr;
             demo_double_pendulum();
             break;
         case SDLK_7:
             m_world.destroy_all();
+            spring_ptr = nullptr;
             demo_springs();
+            break;
+        case SDLK_6:
+            m_world.destroy_all();
+            spring_ptr = nullptr;
+            demo_simple_pendulum();
             break;
         case SDLK_1:
             m_ctrl.editor.active = false;
@@ -259,9 +278,11 @@ void Application::parse_keybd_event(SDL_Event& keybd_event) {
             break;
         case SDLK_n:
             m_world.focus_next();
+            body_id_changed = 1;
             break;
         case SDLK_p:
             m_world.focus_prev();
+            body_id_changed = 1;
             break;
         case SDLK_b: 
             if (!m_ctrl.editor.active) {
@@ -378,6 +399,10 @@ void Application::parse_keybd_event(SDL_Event& keybd_event) {
             Polygon poly(hull);
             m_world.create_body(def, poly);
         }
+        case SDLK_ESCAPE:
+            m_world.focus_at(-1);
+            body_id_changed = 1;
+            break;
     }
 }
 
@@ -390,6 +415,9 @@ void Application::parse_mouse_button_event(SDL_Event& mouse_event) {
     switch (mouse_event.button.button) {
         case SDL_BUTTON_LEFT:
             body_id_changed = m_world.focus_on_position(mouse);
+            if (!body_id_changed) {
+                spring_ptr = m_world.get_spring_from_mouse(mouse);
+            }
             break;
         case SDL_BUTTON_RIGHT:
             if (!m_ctrl.editor.adding_spring) {
@@ -429,7 +457,12 @@ void Application::parse_mouse_wheel_event(SDL_Event& wheel_event) {
     if (wheel_event.wheel.y > 0) {
         camera::zoom_in();
     }else {
-        if (RENDER_SCALE > 0.1) {
+        if (m_ctrl.editor.active) {
+            if (RENDER_SCALE > 25) {
+                camera::zoom_out();
+            }
+        }
+        else if (RENDER_SCALE > 0.1) {
             camera::zoom_out();
         }
     }
@@ -509,7 +542,33 @@ void Application::demo_double_pendulum() {
 
     m_world.enable_gravity();
     m_world.disable_walls();
-    m_world.focus_on_position(body_2->get_p());
+    m_world.focus_at(2);
+    body_id_changed = 1;
+    m_settings.draw_body_trajectory = 1;
+}
+
+void Application::demo_simple_pendulum() {
+    RigidBodyDef body_def;
+    body_def.position = {SCENE_WIDTH * 0.5, SCENE_HEIGHT * 0.5};
+    body_def.type = STATIC;
+    body_def.enabled = false;
+    Polygon anchor_box(create_box(0.5, 0.25));
+    RigidBody* anchor(m_world.create_body(body_def, anchor_box));
+
+    const double length(3);
+    body_def.position = anchor->get_p() + Vector2(0, -length);
+    const double max_angle(PI);
+    body_def.velocity = {(1 - cos(max_angle)) * sqrt(2*g*length), 0};
+    body_def.type = DYNAMIC;
+    body_def.enabled = true;
+    Circle circle(0.2);
+    RigidBody* body_1(m_world.create_body(body_def, circle));
+
+    m_world.add_spring(anchor->get_p(), body_1->get_p(), Spring::UNDAMPED, spring_stiffness_infinite);
+
+    m_world.enable_gravity();
+    m_world.disable_walls();
+    m_world.focus_on_position(body_1->get_p());
     m_settings.draw_body_trajectory = 1;
 }
 
@@ -642,10 +701,12 @@ void Application::show_main_overlay(const float avg_fps) {
     if (p_show) {
         ImGui::SetNextWindowPos(window_pos);
         ImGui::SetNextWindowBgAlpha(0.5);
+        flags |= ImGuiWindowFlags_NoBackground;
         if (ImGui::Begin("Simu overlay", &p_show, flags)) {
-            ImGui::SeparatorText("Simulation profile");
+            ImGui::Text("PROFILE");
             ImGui::Text("%s", m_world.dump_profile().c_str());
-            ImGui::SeparatorText("General infos");
+            ImGui::NewLine();
+            ImGui::Text("GENERAL");
             ImGui::Text("Bodies : %.1u", m_world.get_body_count());
             ImGui::Text("System energy : %.1f J", m_world.total_energy());
             ImGui::End();
@@ -653,38 +714,62 @@ void Application::show_main_overlay(const float avg_fps) {
     }
 }
 
-void Application::show_property_editor(bool* p_open) {
-    if (!ImGui::Begin("Property Editor", p_open)) {
+void Application::show_property_editor() {
+    if (!ImGui::Begin("Property Editor")) {
         ImGui::End();
         return;
     }
 
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2, 2));
-    static ImGuiTableFlags flags(ImGuiTableFlags_BordersV | ImGuiTableFlags_BordersOuterH | ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg | ImGuiTableFlags_NoBordersInBody |
-    ImGuiTableFlags_ScrollY
-    );
-    if (body_id_changed) {
-        ImGui::SetNextWindowScroll(ImVec2(-1.0, (ImGui::GetTextLineHeightWithSpacing() + 4) * m_world.get_focus()));
-    }
-    if (ImGui::BeginTable("###split", 2, flags)) {
-        ImGui::TableSetupScrollFreeze(0, 1);
-        ImGui::TableSetupColumn("Name");
-        ImGui::TableSetupColumn("Value");
-        ImGui::TableHeadersRow();
+    if (ImGui::BeginTabBar("##tabs", ImGuiTabBarFlags_NoTooltip)) {
 
-        for (size_t i(0); i < m_world.get_body_count(); ++i) {
-            show_placeholder_object(i);
+        if (ImGui::BeginTabItem("Bodies")) {
+
+            const int padding(2);
+            if (body_id_changed) {
+                ImGui::SetNextWindowScroll(ImVec2(-1.0, (ImGui::GetTextLineHeightWithSpacing() + padding * 2) * m_world.get_focus()));
+            }
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(padding, padding));
+            static ImGuiTableFlags flags(ImGuiTableFlags_BordersV | ImGuiTableFlags_BordersOuterH | ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg | ImGuiTableFlags_NoBordersInBody |
+            ImGuiTableFlags_ScrollY);
+
+            if (ImGui::BeginTable("###split", 2, flags)) {
+                ImGui::TableSetupScrollFreeze(0, 1);
+                ImGui::TableSetupColumn("Name");
+                ImGui::TableSetupColumn("Value");
+                ImGui::TableHeadersRow();
+
+                bool tree_open(false);
+                for (size_t i(0); i < m_world.get_body_count(); ++i) {
+                    if (show_placeholder_object(m_world.get_body_at(i))) {
+                        tree_open = true;
+                    }
+                }
+                if (!tree_open) {
+                    m_world.focus_at(-1);
+                }
+
+                ImGui::EndTable();
+            }
+
+            ImGui::PopStyleVar();
+
+            ImGui::EndTabItem();
         }
-        ImGui::EndTable();
+
+        if (ImGui::BeginTabItem("Springs")) {
+
+            ImGui::EndTabItem();
+        }
+
+        ImGui::EndTabBar();
     }
-    ImGui::PopStyleVar();
+
     ImGui::End();
 }
 
-void Application::show_placeholder_object(const size_t id) {
-    RigidBody* obj(m_world.get_body_from_id(id));
+bool Application::show_placeholder_object(RigidBody* obj) {
     if (!obj) {
-        return;
+        return false;
     }
     ImGui::PushID(obj);
 
@@ -692,34 +777,36 @@ void Application::show_placeholder_object(const size_t id) {
     ImGui::TableSetColumnIndex(0);
     ImGui::AlignTextToFramePadding();
 
-    if (body_id_changed) {
-        if (obj == m_world.get_focused_body()) {
-            ImGui::SetNextItemOpen(true);
-            // ImGui::SetScrollY(ImGui::GetTextLineHeightWithSpacing() * id);
-        }else {
-            ImGui::SetNextItemOpen(false);
-        }
+    ImGuiTreeNodeFlags flags(ImGuiTreeNodeFlags_SpanAllColumns);
+    if (obj == m_world.get_focused_body()) {
+        ImGui::SetNextItemOpen(true);
+        flags |= ImGuiTreeNodeFlags_Selected;
+        // ImGui::SetScrollY(ImGui::GetTextLineHeightWithSpacing() * id);
+    }else {
+        ImGui::SetNextItemOpen(false);
     }
-    bool node_open(ImGui::TreeNode("Name", "%p", obj));
+
+    bool node_open(ImGui::TreeNodeEx("Name", flags, "RigidBody_%u", obj->get_id()));
+
     ImGui::TableSetColumnIndex(1);
-    ImGui::Text(obj->get_shape()->get_type() == POLYGON ?  "Polygon" : "Ball");
+    ImGui::Text("%p", obj);
 
     if (node_open) {
-        m_world.focus_from_id(id);
+        m_world.focus_body(obj);
 
-        const unsigned n_rows(11);
+        show_placeholder_shape(obj->get_shape());
+
+        const unsigned n_rows(9);
         const char* fields[n_rows] = {
-            "Mass       [kg]",
-            "Inertia [kg.m²]",
-            "Energy      [J]",
-            "PosX        [m]",
-            "PosY        [m]",
-            "VelX      [m/s]",
-            "VelY      [m/s]",
-            "Theta     [deg]",
-            "Omega   [rad/s]",
+            "Mass        [kg]",
+            "Inertia  [kg.m²]",
+            "Energy       [J]",
+            "Position     [m]",
+            "Velocity   [m/s]",
+            "Theta      [deg]",
+            "Omega    [rad/s]",
             "Type", 
-            "IsEnabled"
+            "Enabled"
         };
         float values[9] = {
             (float)obj->get_mass(),
@@ -739,10 +826,10 @@ void Application::show_placeholder_object(const size_t id) {
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0);
             ImGui::AlignTextToFramePadding();
-            ImGuiTreeNodeFlags flags(ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen 
+            ImGuiTreeNodeFlags flags_child(ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen
                     | ImGuiTreeNodeFlags_Bullet);
-            flags |= ImGuiTreeNodeFlags_DefaultOpen;
-            ImGui::TreeNodeEx("Field", flags, "%s", fields[i]);
+            flags_child |= ImGuiTreeNodeFlags_DefaultOpen;
+            ImGui::TreeNodeEx("Field", flags_child, "%s", fields[i]);
 
             ImGui::TableSetColumnIndex(1);
             ImGui::SetNextItemWidth(-FLT_MIN);
@@ -754,37 +841,61 @@ void Application::show_placeholder_object(const size_t id) {
                     ImGui::Text("%.3f", values[i]);
                     break;
                 case 3:
-                case 4:
-                case 7:
-                    if (ImGui::InputFloat(fields[i], &values[i])) {
+                    ImGui::TextColored(ImVec4(ImColor(255, 0, 0)), "X");
+                    ImGui::SameLine();
+                    ImGui::SetNextItemWidth(-ImGui::GetContentRegionAvail().x * 0.55);
+                    if (ImGui::InputFloat("##X", &values[i])) {
+                        property_changed = true;
+                    }
+                    ImGui::SameLine();
+                    ImGui::TextColored(ImVec4(ImColor(0, 255, 0)), "Y");
+                    ImGui::SameLine();
+                    if (ImGui::InputFloat("##Y", &values[i+1])) {
                         property_changed = true;
                     }
                     break;
+                case 4:
+                    ImGui::BeginDisabled(obj->is_static());
+                    ImGui::BeginGroup();
+
+                    ImGui::TextColored(ImVec4(ImColor(255, 0, 0)), "X");
+                    ImGui::SameLine();
+                    ImGui::SetNextItemWidth(-ImGui::GetContentRegionAvail().x * 0.55);
+                    if (ImGui::InputFloat("##X", &values[i+1])) {
+                        property_changed = true;
+                    }
+                    ImGui::SameLine();
+                    ImGui::TextColored(ImVec4(ImColor(0, 255, 0)), "Y");
+                    ImGui::SameLine();
+                    if (ImGui::InputFloat("##Y", &values[i+2])) {
+                        property_changed = true;
+                    }
+
+                    ImGui::EndGroup();
+                    ImGui::EndDisabled();
+                    break;
                 case 5:
+                    if (ImGui::InputFloat(fields[i], &values[i+2])) {
+                        property_changed = true;
+                    }
+                    break;
                 case 6:
-                case 8:
-                    if (!obj->is_static()) {
-                        if (ImGui::InputFloat(fields[i], &values[i])) {
-                            property_changed = true;
+                    ImGui::BeginDisabled(obj->is_static());
+                    if (ImGui::InputFloat(fields[i], &values[i+2])) {
+                        property_changed = true;
+                    }
+                    ImGui::EndDisabled();
+                    break;
+                case 7:
+                    {
+                        int new_body_type(obj->get_type());
+                        const char* items_body_type("STATIC\0KINEMATIC\0DYNAMIC\0");
+                        if (ImGui::Combo("##Type", &new_body_type, items_body_type)) {
+                            obj->set_type(static_cast<BodyType>(new_body_type));
                         }
-                    }else {
-                        ImGui::Text("%.3f", values[i]);
                     }
                     break;
-                case 9:
-                    switch (obj->get_type()) {
-                        case STATIC:
-                            ImGui::Text("STATIC");
-                            break;
-                        case KINEMATIC:
-                            ImGui::Text("KINEMATIC");
-                            break;
-                        case DYNAMIC:
-                            ImGui::Text("DYNAMIC");
-                            break;
-                    }
-                    break;
-                case 10:
+                case 8:
                     ImGui::Text(obj->is_enabled() ? "True" : "False");
                     break;
             }
@@ -803,6 +914,171 @@ void Application::show_placeholder_object(const size_t id) {
         ImGui::TreePop();
     }
     ImGui::PopID();
+    return node_open;
+}
+
+bool Application::show_placeholder_shape(Shape* shape) {
+    if (!shape) {
+        return false;
+    }
+    ImGui::PushID(shape);
+
+    ImGui::TableNextRow();
+    ImGui::TableSetColumnIndex(0);
+    ImGui::AlignTextToFramePadding();
+
+    ImGuiTreeNodeFlags flags(ImGuiTreeNodeFlags_SpanAllColumns);
+    bool node_open(ImGui::TreeNodeEx("Name", flags, "Shape_1"));
+    ImGui::TableSetColumnIndex(1);
+    ImGui::Text("%p", shape);
+
+    if (node_open) {
+        const char* shape_fields[3] = { "Type", "Area", "Radius"};
+        const unsigned count(shape->get_count());
+        unsigned vertex_id(0);
+        for (unsigned i(0); i < 3 + count; ++i) {
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::AlignTextToFramePadding();
+            ImGuiTreeNodeFlags flags_child(ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen
+            | ImGuiTreeNodeFlags_Bullet);
+            flags_child |= ImGuiTreeNodeFlags_DefaultOpen;
+            if (i < 3) {
+                ImGui::TreeNodeEx("Field", flags_child, "%s", shape_fields[i]);
+            }else {
+                ImGui::TreeNodeEx("Field", flags_child, "Vertex_%u", vertex_id);
+                ++vertex_id;
+            }
+
+            ImGui::TableSetColumnIndex(1);
+            ImGui::SetNextItemWidth(-FLT_MIN);
+
+            switch (i) {
+                case 0:
+                    ImGui::Text(shape->get_type() == CIRCLE ? "CIRCLE" : "POLYGON");
+                    break;
+                case 1:
+                    ImGui::Text("%.3f", shape->get_area());
+                    break;
+                case 2:
+                    ImGui::Text("%.3f", shape->get_radius());
+                    break;
+            }
+
+            if (i >= 3) {
+                auto vertex(shape->get_vertices()[vertex_id]);
+                ImGui::Text("{%.3f, %.3f}", vertex.x, vertex.y);
+            }
+        }
+
+        ImGui::TreePop();
+    }
+
+    ImGui::PopID();
+    return false;
+}
+
+void Application::show_obj_dynamics_plot(const RigidBody* obj) {
+    if (!obj) {
+        return;
+    }
+
+    if (!obj->is_dynamic()) {
+        return;
+    }
+
+    if (!ImGui::Begin("Object Dynamics")) {
+        ImGui::End();
+        return;
+    }
+
+    static ScrollingBuffer pos_data_x, pos_data_y, vel_data_x, vel_data_y;
+    static float t(0);
+    static float history(10.0f); // Plot last 10s
+
+    if (body_id_changed) {
+        pos_data_x.erase();
+        pos_data_y.erase();
+        vel_data_x.erase();
+        vel_data_y.erase();
+    }
+    if (m_ctrl.simulation.running) {
+        t += ImGui::GetIO().DeltaTime;
+        Vector2 pos(obj->get_p());
+        Vector2 vel(obj->get_v());
+        pos_data_x.add_point(t, pos.x);
+        pos_data_y.add_point(t, pos.y);
+        vel_data_x.add_point(t, vel.x);
+        vel_data_y.add_point(t, vel.y);
+    }
+
+    ImPlotAxisFlags flags(ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_RangeFit);
+    if (m_settings.plot_position) {
+        if (ImPlot::BeginPlot("##Position", ImVec2(-1,150))) {
+            ImPlot::SetupAxes(nullptr, nullptr, 0, flags);
+            ImPlot::SetupAxisLimits(ImAxis_X1, t - history, t, ImGuiCond_Always);
+            ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 20);
+            ImPlot::PlotLine("x(t)", &pos_data_x.data[0].x, &pos_data_x.data[0].y, pos_data_x.data.size(), 0, pos_data_x.offset, 2 * sizeof(float));
+            ImPlot::PlotLine("y(t)", &pos_data_y.data[0].x, &pos_data_y.data[0].y, pos_data_y.data.size(), 0, pos_data_y.offset, 2 * sizeof(float));
+            ImPlot::EndPlot();
+        }
+    }
+
+    if (m_settings.plot_velocity) {
+        if (ImPlot::BeginPlot("##Velocity", ImVec2(-1,150))) {
+            ImPlot::SetupAxes(nullptr, nullptr, 0, flags);
+            ImPlot::SetupAxisLimits(ImAxis_X1, t - history, t, ImGuiCond_Always);
+            ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 20);
+            ImPlot::PlotLine("vx(t)", &vel_data_x.data[0].x, &vel_data_x.data[0].y, vel_data_x.data.size(), 0, vel_data_x.offset, 2 * sizeof(float));
+            ImPlot::PlotLine("vy(t)", &vel_data_y.data[0].x, &vel_data_y.data[0].y, vel_data_y.data.size(), 0, vel_data_y.offset, 2 * sizeof(float));
+            ImPlot::EndPlot();
+        }
+    }
+
+    ImGui::End();
+}
+
+void Application::show_osc_dynamics_plot(const Spring* osc) {
+    if (!osc) {
+        return;
+    }
+
+    if (!ImGui::Begin("Oscillator Dynamics")) {
+        ImGui::End();
+        return;
+    }
+
+    static RollingBuffer phase_portrait;
+    phase_portrait.span = 20e3;
+
+    static const Spring* ptr(nullptr);
+    if (osc != ptr) {
+        phase_portrait.data.clear();
+    }
+    ptr = osc;
+
+    if (m_ctrl.simulation.running) {
+        const Vector2 state(osc->get_system_state());
+        phase_portrait.add_point(state.x, state.y);
+    }
+
+    // const char* pi_str[] = {"-5PI", "-9/2PI", "-4PI", "-7/2PI", "-3PI", "-5/2PI", "-2PI",
+    //     "-3/2PI", "-PI", "-PI/2", "0", "PI/2", "PI", "3/2PI", "2PI", "5/2PI", "3PI", "7/2PI",
+    //     "4PI", "9/2PI", "5PI"
+    // };
+    // static double xticks[] = {-5*PI, -9/2*PI, -4*PI, -7/2*PI, -3*PI, -5/2*PI, -2*PI, -3/2*PI,
+    //     -PI, -PI/2, 0, PI/2, PI, 3/2*PI, 2*PI, 5/2*PI, 3*PI, 7/2*PI, 4*PI, 9/2*PI, 5*PI
+    // };
+    if (ImPlot::BeginPlot("Phase Plane")) {
+        ImPlotAxisFlags flags(ImPlotAxisFlags_AutoFit);
+        ImPlot::SetupAxes(nullptr, nullptr, flags, flags);
+        ImPlot::TagX(osc->get_x_eq(), ImVec4(ImColor(0, 204, 102)), true);
+        // ImPlot::SetupAxisTicks(ImAxis_X1, xticks, 21, pi_str);
+        ImPlot::PlotLine("X", &phase_portrait.data[0].x, &phase_portrait.data[0].y, phase_portrait.data.size(), 0, 0, 2 * sizeof(float));
+        ImPlot::EndPlot();
+    }
+
+    ImGui::End();
 }
 
 void Application::show_settings_panel() {
@@ -816,6 +1092,12 @@ void Application::show_settings_panel() {
     ImGui::Checkbox("Draw collision normal", &m_settings.draw_collision_normal);
     ImGui::Checkbox("Draw bounding boxes", &m_settings.draw_bounding_boxes);
     ImGui::Checkbox("Draw distance proxys", &m_settings.draw_distance_proxys);
+    ImGui::EndGroup();
+    ImGui::SameLine();
+    ImGui::BeginGroup();
+    ImGui::Checkbox("Plot Position", &m_settings.plot_position);
+    ImGui::Checkbox("Plot Velocity", &m_settings.plot_velocity);
+    ImGui::Checkbox("Plot phase plane", &m_settings.plot_phase_plane);
     ImGui::EndGroup();
     ImGui::End();
 }

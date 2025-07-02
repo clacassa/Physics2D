@@ -10,6 +10,9 @@ struct Settings {
     bool draw_collision_normal;
     bool draw_bounding_boxes;
     bool draw_distance_proxys;
+    bool plot_position;
+    bool plot_velocity;
+    bool plot_phase_plane;
 
     Settings();
     void reset();

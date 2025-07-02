@@ -1,14 +1,20 @@
 #include <iostream>
 #include "link.h"
+#include "editor.h"
 #include "render.h"
 #include "rigid_body.h"
 #include "vector2.h"
+#include "config.h"
 
 Spring::Spring(RigidBody* A_, RigidBody* B_, double length, float stiffness, DampingType damping)
 :   A(A_),
     B(B_),
+    axis(A->get_p() - B->get_p()),
     l0(length),
-    k(stiffness)
+    k(stiffness),
+    x_eq(0),
+    theta(atan2(axis.y, axis.x) - PI / 2.0),
+    theta_dot(0)
 {
     const double m(A->get_mass() * B->get_mass() / (A->get_mass() + B->get_mass()));
     critical_damping = 2 * sqrt(k * m);
@@ -29,30 +35,56 @@ Spring::Spring(RigidBody* A_, RigidBody* B_, double length, float stiffness, Dam
     }
 }
 
-void Spring::apply() {
-    Vector2 axis(A->get_p() - B->get_p());
+void Spring::apply(const double dt) {
+    axis = A->get_p() - B->get_p();
     double l(axis.norm());
 
     const Vector2 n(axis.normalized());
+    RigidBody* anchor(nullptr);
+    RigidBody* free_mass(nullptr);
     // Calculate equilibrum position
-    if (A->is_static() || !A->is_enabled())
-        equilibrum_pos = A->get_p() - n * (l0 + dot2(B->get_f(), n) / k);
-    else if (B->is_static() || !B->is_enabled())
-        equilibrum_pos = B->get_p() + n * (l0 + dot2(A->get_f(), n) / k);
+    if (A->is_static() || !A->is_enabled()) {
+        x_eq = B->get_mass() * dot2(vector2_y*g, n) / k;
+        equilibrium_pos = A->get_p() - n * (l0 + x_eq);
+        anchor = A;
+        free_mass = B;
+    }
+    else if (B->is_static() || !B->is_enabled()) {
+        x_eq = A->get_mass() * dot2(-vector2_y*g, axis) / k;
+        equilibrium_pos = B->get_p() + n * (l0 + x_eq);
+        anchor = B;
+        free_mass = A;
+    }
 
     // Calculate and apply spring forces on each body
-    const double callback(k * (l - l0));
-    const double damping(actual_damping * dot2((A->get_v() - B->get_v()), n));
-    if (!B->is_dynamic())
+    const double x(l - l0);
+    const double callback(k * x);
+    const double x_dot(dot2((A->get_v() - B->get_v()), n));
+    const double damping(actual_damping * x_dot);
+    if (!B->is_dynamic()) {
         A->subject_to_force(-n * (callback + damping), A->get_p());
-    else if (!A->is_dynamic())
+    }
+    else if (!A->is_dynamic()) {
         B->subject_to_force(n * (callback + damping), B->get_p());
+    }
     else {
         A->subject_to_force(-n * (callback + damping) * 0.5, A->get_p());
         B->subject_to_force(n * (callback + damping) * 0.5, B->get_p());
     }
 
-    position_curve.push_back(l - l0);
+    if (!anchor || !free_mass) {
+        return;
+    }
+    if (k == spring_stiffness_infinite) {
+        theta += theta_dot * dt;
+        theta_dot = dot2(free_mass->get_v() - anchor->get_v(), axis.normal());
+        theta_dot = deg2rad(theta_dot);
+        system_state = {theta, theta_dot};
+        // if ()
+        // phase_portrait.add_point(theta, (theta - theta_prev) / dt);
+    }else {
+        system_state = {x, x_dot};
+    }
 }
 
 void Spring::draw(SDL_Renderer* renderer) {
@@ -94,6 +126,10 @@ void Spring::draw(SDL_Renderer* renderer) {
 double Spring::energy() const {
     const double x(Vector2(B->get_p() - A->get_p()).norm() - l0);
     return 0.5 * k * x * x;
+}
+
+const Vector2 Spring::get_anchor() const {
+    return A->get_p();
 }
 
 void Spring::draw_coil(SDL_Renderer* renderer, Vector2 start, Vector2 direction, double height) const {

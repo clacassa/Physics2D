@@ -4,9 +4,12 @@
 #include <SDL.h>
 #include <cstddef>
 #include "control.h"
+#include "rigid_body.h"
 #include "world.h"
 #include "editor.h"
 #include "settings.h"
+
+class Spring;
 
 class Application {
 public:
@@ -33,6 +36,7 @@ private:
     double time_step;
 
     bool body_id_changed;
+    Spring* spring_ptr = nullptr;
 
     // Events
     void parse_event(SDL_Event& event);
@@ -46,12 +50,16 @@ private:
     void demo_stacking();
     void demo_double_pendulum();
     void demo_springs();
+    void demo_simple_pendulum();
 
     // GUI
     void show_menubar();
     void show_main_overlay(const float avg_fps);
-    void show_placeholder_object(const size_t id);
-    void show_property_editor(bool* p_open);
+    bool show_placeholder_object(RigidBody* obj);
+    bool show_placeholder_shape(Shape* shape);
+    void show_property_editor();
+    void show_obj_dynamics_plot(const RigidBody* obj);
+    void show_osc_dynamics_plot(const Spring* osc);
     void show_settings_panel();
     void show_help_panel();
 };  

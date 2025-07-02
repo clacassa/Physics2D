@@ -2,9 +2,8 @@
 #define LINK_H
 
 #include <SDL_render.h>
-#include <deque>
-#include <vector>
 #include "vector2.h"
+#include "utils.h"
 
 class RigidBody;
 
@@ -13,19 +12,30 @@ public:
     enum DampingType { UNDAMPED = 0, UNDERDAMPED, CRIT_DAMPED, OVERDAMPED };
 
     Spring(RigidBody* A_, RigidBody* B_, double length, float stiffness, DampingType damping);
-    void apply();
+    void apply(const double dt);
     void draw(SDL_Renderer* renderer);
     double energy() const;
+
+    // const ScrollingBuffer& get_phase_data() const { return phase_portrait; }
+    inline float get_stiffness() const { return k; }
+    inline double get_x_eq() const { return x_eq; }
+    inline const Vector2& get_system_state() const { return system_state; }
+    inline const Vector2 get_axis() const { return axis; }
+    const Vector2 get_anchor() const;
 
 private:
     RigidBody* A;
     RigidBody* B;
+    Vector2 axis;
     double l0; // rest length
     float k; // stiffness
     double critical_damping; // c_crit = 2m sqrt(k / m)
     double actual_damping; // damping coefficient lambda
-    Vector2 equilibrum_pos;
-    std::vector<double> position_curve;
+    Vector2 equilibrium_pos; // Equilibrium point in world space
+    Vector2 system_state; // {x, x_dot}
+    double x_eq;
+    double theta;
+    double theta_dot;
 
     void draw_coil(SDL_Renderer* renderer, Vector2 start, Vector2 direction, double height) const; 
 };

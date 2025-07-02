@@ -1,6 +1,8 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include <vector>
+#include "vector2.h"
 #include <string>
 
 /**
@@ -29,6 +31,60 @@ private:
 
     float get_elapsed(const double prescaler = 1.0);
 };
+
+namespace utils {
+    struct Vec2f {
+        float x;
+        float y;
+    };
+}
+
+// utility structure for realtime plot from ImPlot
+struct ScrollingBuffer {
+
+
+    unsigned max_size;
+    int offset;
+    std::vector<utils::Vec2f> data;
+
+    ScrollingBuffer(int max_size_ = 2e3) {
+        max_size = max_size_;
+        offset  = 0;
+        data.reserve(max_size);
+    }
+
+    inline void add_point(float x, float y) {
+        if (data.size() < max_size) {
+            data.push_back({x, y});
+        }else {
+            data[offset] = {x, y};
+            offset =  (offset + 1) % max_size;
+        }
+    }
+    inline void erase() {
+        if (data.size() > 0) {
+            data.clear();
+            offset  = 0;
+        }
+    }
+};
+
+// utility structure for realtime plot from ImPlot
+struct RollingBuffer {
+    float span;
+    std::vector<utils::Vec2f> data;
+
+    RollingBuffer() {
+        span = 2e3;
+        data.reserve(span);
+    }
+    void add_point(float x, float y) {
+        if (!data.empty() && data.size() >= span)
+            data.clear();
+        data.push_back({x, y});
+    }
+};
+
 
 #endif /* UTILS_H */
 

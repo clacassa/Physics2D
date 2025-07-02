@@ -8,6 +8,7 @@
 #include "broad_phase.h" // SweepAndPrune
 #include "link.h"        // Spring::DampingType
 #include "rigid_body.h"
+#include "vector2.h"
 
 struct Settings;
 struct DistanceInfo;
@@ -36,11 +37,15 @@ public:
     bool focus_next();
     bool focus_prev();
     bool focus_on_position(Vector2 p);
-    bool focus_from_id(const size_t id);
+    bool focus_at(const int index);
+    bool focus_body(const RigidBody* body);
 
-    inline size_t get_focus() const { return focus; }
+    inline size_t get_focus() const { return (focus >= 0 ? focus : 0); }
     RigidBody* get_focused_body() const;
-    RigidBody* get_body_from_id(const size_t id) const;
+    RigidBody* get_body_at(const size_t index) const;
+
+    Spring* get_spring_from_mouse(Vector2 p);
+    Spring* get_spring_at(const size_t index) const;
 
     inline unsigned get_body_count() const { return body_count; }
     inline void toggle_gravity() { gravity_enabled = !gravity_enabled; }
@@ -74,7 +79,7 @@ private:
 
     std::vector<RigidBody*> m_bodies;
     unsigned body_count;
-    unsigned focus;
+    int focus;
 
     std::vector<Manifold*> m_contacts;
     std::vector<DistanceInfo*> m_proxys;

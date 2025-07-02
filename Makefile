@@ -1,7 +1,7 @@
 OUT = physics 
 CXX = g++
 CXXFLAGS = -g -Wall -std=c++17 -O3
-INCLUDE = -I$(IMGUI_DIR)
+INCLUDE = -I$(IMGUI_DIR) -I$(IMPLOT_DIR)
 LDLIBS = 
 SRC_DIR = src/
 OBJ_DIR = obj/
@@ -15,6 +15,11 @@ IMGUI_DIR = imgui/
 IMGUI_SRC = $(wildcard $(IMGUI_DIR)imgui*.cpp)
 #IMGUI_OBJ = $(addsuffix .o, $(basename $(notdir $(IMGUI_SRC))))
 IMGUI_OBJ = $(patsubst $(IMGUI_DIR)%.cpp, $(OBJ_DIR)%.o, $(IMGUI_SRC))
+
+# ImPlot library files
+IMPLOT_DIR = implot/
+IMPLOT_SRC = $(wildcard $(IMPLOT_DIR)implot*.cpp)
+IMPLOT_OBJ = $(patsubst $(IMPLOT_DIR)%.cpp, $(OBJ_DIR)%.o, $(IMPLOT_SRC))
 
 ifeq ($(UNAME_S), Linux)
 	PLATFORM_MSG = "Linux"
@@ -36,11 +41,14 @@ all: setup $(OUT)
 	@printf "%b\n" "\033[32mBuild complete\033[0m for $(PLATFORM_MSG)"
 	@echo $(CONFIG_MSG)
 
-$(OUT): $(OFILES) $(IMGUI_OBJ) $(TRACY_OBJ)
+$(OUT): $(OFILES) $(IMGUI_OBJ) $(IMPLOT_OBJ) $(TRACY_OBJ)
 	$(CXX) $(CXXFLAGS) $(INCLUDE) $^ -o $@ $(LDLIBS)
 	@echo "------------------------"
 
 $(OBJ_DIR)%.o: $(IMGUI_DIR)%.cpp
+	$(CXX) $(CXXFLAGS) $(INCLUDE) -c $< -o $@
+
+$(OBJ_DIR)%.o: $(IMPLOT_DIR)%.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDE) -c $< -o $@
 
 $(OBJ_DIR)%.o: $(SRC_DIR)%.cc
@@ -85,7 +93,7 @@ clean:
 	
 .PHONY: purge
 purge:
-	@rm -f $(OUT) $(OFILES) $(OFILES:.o=.d) $(IMGUI_OBJ) $(TRACY_OBJ)
+	@rm -f $(OUT) $(OFILES) $(OFILES:.o=.d) $(IMGUI_OBJ) $(IMPLOT_OBJ) $(TRACY_OBJ)
 
 .PHONY: remake
 remake: clean all
