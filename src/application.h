@@ -45,6 +45,8 @@ private:
     void parse_mouse_motion_event(SDL_Event& motion_event);
     void parse_mouse_wheel_event(SDL_Event& wheel_event);
 
+    void create_scene_walls();
+
     // Demos
     void demo_collision();
     void demo_stacking();

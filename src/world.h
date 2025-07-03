@@ -24,8 +24,9 @@ public:
     void step(double dt, int steps, Settings& settings, bool perft = false);
     void render(SDL_Renderer* renderer, bool running, Settings& settings);
 
-    RigidBody* create_body(const RigidBodyDef& body_def, const Shape& shape);
+    RigidBody* add_body(const RigidBodyDef& body_def, const Shape& shape);
     void add_spring(Vector2 p1, Vector2 p2, Spring::DampingType damping, float stiffness);
+    void add_force_field(const Vector2 field);
 
     void destroy_body(RigidBody* body);
     void destroy_all();
@@ -85,7 +86,7 @@ private:
     std::vector<DistanceInfo*> m_proxys;
 
     std::vector<Spring*> m_springs;
-    std::array<Vector2, 3> m_force_fields;
+    std::vector<Vector2> m_force_fields;
     // std::vector<Constraint*> m_constraints;
     SweepAndPrune m_sap;
     Profile m_profile;

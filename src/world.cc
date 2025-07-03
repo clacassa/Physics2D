@@ -15,15 +15,15 @@
 #include "vector2.h"
 
 World::World()
-:   gravity_enabled(true),
-    walls_enabled(true),
+:   gravity_enabled(1),
+    walls_enabled(0),
     air_friction_enabled(0),
     body_count(0),
-    focus(-1),
-    m_force_fields({Vector2{0.0, -g * gravity_enabled}, Vector2{0.0, 0.0}, Vector2{0.0, 0.0}})
+    focus(-1)
 {
     m_bodies.reserve(500);
     body_count = m_bodies.size();
+    m_force_fields.push_back({0, -g});
     m_profile.reset();
 }
 
@@ -37,7 +37,7 @@ void World::step(double dt, int substeps, Settings& settings, bool perft) {
         def.position = {0.5 * SCENE_WIDTH, 0.5 * SCENE_HEIGHT};
         def.velocity = {1, 0};
         Circle ball(0.1);
-        create_body(def, ball);
+        add_body(def, ball);
     }
 
     m_profile.reset();
@@ -201,7 +201,7 @@ void World::render(SDL_Renderer* renderer, bool running, Settings& settings) {
     }
 }
 
-RigidBody* World::create_body(const RigidBodyDef& body_def, const Shape& shape) {
+RigidBody* World::add_body(const RigidBodyDef& body_def, const Shape& shape) {
     RigidBody* body;
     body = new RigidBody(body_def, shape, body_count);
 
@@ -234,6 +234,10 @@ void World::add_spring(Vector2 p1, Vector2 p2, Spring::DampingType damping, floa
             m_springs.push_back(new Spring(a, b, rest_length, stiffness, damping));
         }
     }
+}
+
+void World::add_force_field(const Vector2 field) {
+    m_force_fields.push_back(field);
 }
 
 void World::destroy_body(RigidBody* body) {
@@ -443,12 +447,17 @@ Spring* World::get_spring_at(const size_t index) const {
 
 void World::apply_forces() {
     for (auto body : m_bodies) {
+        const Vector2 cm(body->get_p());
+        const double m(body->get_mass());
         body->reset_forces();
-        if (gravity_enabled && body->is_enabled() && body->is_dynamic()) {
-            body->subject_to_force({0.0, -body->get_mass() * g}, body->get_p());
+        if (gravity_enabled) {
+            body->subject_to_force({0.0, -m * g}, cm);
         }
-        if (air_friction_enabled && body->is_enabled() && body->is_dynamic()) {
-            body->subject_to_force(-body->get_v() * 10 * air_viscosity, body->get_p());
+        if (air_friction_enabled) {
+            body->subject_to_force(-body->get_v() * 10 * air_viscosity, cm);
+        }
+        for (auto f : m_force_fields) {
+            body->subject_to_force(f * m, cm);
         }
     }
 }

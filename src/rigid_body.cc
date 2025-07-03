@@ -1,3 +1,4 @@
+#include <SDL_endian.h>
 #include <SDL_stdinc.h>
 #include <array>
 #include "rigid_body.h"
@@ -128,7 +129,7 @@ void RigidBody::step(double dt) {
 }
 
 void RigidBody::subject_to_force(const Vector2 force, const Vector2 point) {
-    if (m_type != DYNAMIC) {
+    if (m_type != DYNAMIC || !m_enabled) {
         return;
     }
 
