@@ -22,12 +22,14 @@ target_compile_options(compiler_flags INTERFACE
   "$<${msvc_cxx}:$<BUILD_INTERFACE:-W3>>"
 )
 
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/build/findpkg)
 # FetchContent_Declare(
 #     SDL2
 #     URL https://github.com/libsdl-org/SDL/archive/refs/tags/release-2.30.7.tar.gz
 # )
 # FetchContent_MakeAvailable(SDL2)
 find_package(SDL2 REQUIRED)
+find_package(SDL2_gfx REQUIRED)
 
 add_library(imgui STATIC
     imgui/imgui.cpp
@@ -41,6 +43,16 @@ add_library(imgui STATIC
 
 target_link_libraries(imgui PUBLIC ${SDL2_LIBRARIES})
 target_include_directories(imgui PUBLIC imgui)
+
+add_library(implot STATIC
+    implot/implot.cpp
+    implot/implot_demo.cpp
+    implot/implot_items.cpp
+)
+
+target_include_directories(implot PUBLIC implot)
+target_include_directories(implot PRIVATE imgui)
+target_link_libraries(implot PRIVATE imgui)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -86,7 +98,7 @@ set_target_properties(physics2d PROPERTIES
     DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX}
 )
 
-target_link_libraries(physics2d PUBLIC SDL2::SDL2 SDL2::SDL2main imgui compiler_flags)
+target_link_libraries(physics2d PUBLIC SDL2::SDL2 SDL2::SDL2main SDL2::GFX imgui implot compiler_flags)
 
 # add_subdirectory(src)
 add_subdirectory(tests)
