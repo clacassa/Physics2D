@@ -23,7 +23,6 @@ World::World()
 {
     m_bodies.reserve(500);
     body_count = m_bodies.size();
-    m_force_fields.push_back({0, -g});
     m_profile.reset();
 }
 
