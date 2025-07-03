@@ -22,7 +22,7 @@ target_compile_options(compiler_flags INTERFACE
   "$<${msvc_cxx}:$<BUILD_INTERFACE:-W3>>"
 )
 
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/build/findpkg)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/findpkg)
 # FetchContent_Declare(
 #     SDL2
 #     URL https://github.com/libsdl-org/SDL/archive/refs/tags/release-2.30.7.tar.gz
