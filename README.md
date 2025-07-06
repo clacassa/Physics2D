@@ -14,19 +14,21 @@ The engine is written in C++. A demo application is provided for testing purpose
     - SAT, GJK
 - Contact manifold calculation
     - SAT, EPA + clipping
-- Mass-spring systems with phase plot
+- Mass-spring systems with
+    - Phase plot
     - Can simulate distance constraints with an "infinte" stiffness
 
 ### Installation
 
 #### Dependencies
 
-For the moment the simulator is tightly coupled to the demo application. In the future I want to separate them so to provide a real "library" that can be used in any application.
-Until I make those changes, you will have to install the following packages:
 - ImGui
 - ImPlot
 - SDL2
 - SDL2_gfx
+
+For the moment the simulator is tightly coupled to the demo application. In the future I want to separate them so to provide a real "library" that can be used in any application.
+Until I make those changes, you will have to **Install SDL2 and SDL2_gfx**.
 
 #### Build
 
