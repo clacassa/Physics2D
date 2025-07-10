@@ -3,6 +3,7 @@
 
 struct Settings {
     bool slow_motion;
+    bool enable_gravity;
     bool draw_body_trajectory;
     bool draw_center_of_mass;
     bool highlight_collisions;

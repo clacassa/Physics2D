@@ -21,8 +21,9 @@ void Settings::reset() {
     draw_collision_normal = 0;
     draw_bounding_boxes = 0;
     draw_distance_proxys = 0;
-    plot_position = 1;
-    plot_velocity = 1;
-    plot_phase_plane = 1;
 #endif
+    enable_gravity = 1;
+    plot_position = 0;
+    plot_velocity = 0;
+    plot_phase_plane = 0;
 }
