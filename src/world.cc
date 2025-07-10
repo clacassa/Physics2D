@@ -15,7 +15,7 @@
 #include "vector2.h"
 
 World::World()
-:   gravity_enabled(1),
+:   m_gravity(g),
     walls_enabled(0),
     air_friction_enabled(0),
     body_count(0),
@@ -49,7 +49,7 @@ void World::step(double dt, int substeps, Settings& settings, bool perft) {
 
 #ifdef SWEEP_AND_PRUNE
     pairs_timer.reset();
-    m_sap.choose_axis();
+    // m_sap.choose_axis();
     const auto pairs(m_sap.process());
     m_profile.pairs = pairs_timer.get_microseconds();
     m_profile.broad_phase = m_profile.pairs;
@@ -302,18 +302,16 @@ std::string World::dump_profile() const {
     return perf;
 }
 
-std::string World::dump_selected_body() const {
-    std::string body_data;
-    if (body_count > 0 && focus >= 0) {
-        body_data = m_bodies[focus]->dump(gravity_enabled);
-    }
-    return body_data;
+std::string World::dump_body(const unsigned id) const {
+    const RigidBody* ptr(get_body(id));
+    assert(ptr);
+    return ptr->dump(m_gravity);
 }
 
 double World::total_energy() const {
     double energy(0);
     for (auto body : m_bodies) {
-        energy += body->energy(gravity_enabled);
+        energy += body->energy(m_gravity);
     }
     for (auto spring : m_springs) {
         energy += spring->energy();
@@ -415,6 +413,15 @@ RigidBody* World::get_body_at(const size_t index) const {
     return m_bodies[index];
 }
 
+RigidBody* World::get_body(const unsigned id) const {
+    for (auto body : m_bodies) {
+        if (id == body->get_id()) {
+            return body;
+        }
+    }
+    return nullptr;
+}
+
 Spring* World::get_spring_from_mouse(Vector2 p) {
     for (auto spring : m_springs) {
         const Vector2 axis(spring->get_axis());
@@ -448,10 +455,10 @@ void World::apply_forces() {
     for (auto body : m_bodies) {
         const Vector2 cm(body->get_p());
         const double m(body->get_mass());
+
         body->reset_forces();
-        if (gravity_enabled) {
-            body->subject_to_force({0.0, -m * g}, cm);
-        }
+        body->subject_to_force({0.0, -m * m_gravity}, cm);
+
         if (air_friction_enabled) {
             body->subject_to_force(-body->get_v() * 10 * air_viscosity, cm);
         }

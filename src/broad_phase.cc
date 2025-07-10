@@ -8,7 +8,7 @@ std::vector<BodyPair> SweepAndPrune::process() {
     std::vector<BodyPair> possible_collisions;
     std::vector<RigidBody*> active_intervall;
 
-    if (m_var_x >= m_var_y) {
+    if (1/*m_var_x >= m_var_y*/) {
         sort_ascending_x(m_list);
         for (unsigned i(0); i < m_list.size(); ++i) {
             // Skip if the body is disabled
@@ -27,6 +27,7 @@ std::vector<BodyPair> SweepAndPrune::process() {
             active_intervall.push_back(m_list[i]);
         }
     }else {
+        // TODO: Fix Y-axis causing weird behavior during collision resolution
         sort_ascending_y(m_list);
         for (unsigned i(0); i < m_list.size(); ++i) {
             // Skip if the body is disabled

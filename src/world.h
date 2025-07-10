@@ -6,6 +6,7 @@
 #include <array>
 #include <string>
 #include "broad_phase.h" // SweepAndPrune
+#include "config.h"
 #include "link.h"        // Spring::DampingType
 #include "rigid_body.h"
 #include "vector2.h"
@@ -32,7 +33,7 @@ public:
     void destroy_all();
     
     std::string dump_profile() const;
-    std::string dump_selected_body() const;
+    std::string dump_body(const unsigned id) const;
     double total_energy() const;
 
     bool focus_next();
@@ -44,14 +45,14 @@ public:
     inline size_t get_focus() const { return (focus >= 0 ? focus : 0); }
     RigidBody* get_focused_body() const;
     RigidBody* get_body_at(const size_t index) const;
+    RigidBody* get_body(const unsigned id) const;
 
     Spring* get_spring_from_mouse(Vector2 p);
     Spring* get_spring_at(const size_t index) const;
 
     inline unsigned get_body_count() const { return body_count; }
-    inline void toggle_gravity() { gravity_enabled = !gravity_enabled; }
-    inline void enable_gravity() { gravity_enabled = 1; }
-    inline void disable_gravity() { gravity_enabled = 0; }
+    inline void set_gravity(const double gravity = g) { m_gravity = gravity; }
+    inline double get_gravity() const { return m_gravity; }
     inline void enable_walls() { walls_enabled = 1; }
     inline void disable_walls() { walls_enabled = 0; }
     
@@ -74,7 +75,7 @@ private:
         void reset();
     };
 
-    bool gravity_enabled;
+    double m_gravity;
     bool walls_enabled;
     bool air_friction_enabled;
 
