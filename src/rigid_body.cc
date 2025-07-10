@@ -203,8 +203,8 @@ void RigidBody::set_angular_vel(const double omega) {
     m_omega = omega;
 }
 
-double RigidBody::energy(bool gravity_enabled) const {
-    return k_energy() + p_energy() * gravity_enabled;
+double RigidBody::energy(double gravity) const {
+    return k_energy() + p_energy(gravity);
 }
 
 double RigidBody::k_energy() const {
@@ -212,12 +212,12 @@ double RigidBody::k_energy() const {
     return 0.5 * m_mass * v2 + 0.5 * m_inertia * m_omega * m_omega;
 }
 
-double RigidBody::p_energy() const {
+double RigidBody::p_energy(double gravity) const {
     if (m_type != DYNAMIC) {
         return 0;
     }
 
-    return m_mass * g * m_pos.y;
+    return m_mass * gravity * m_pos.y;
 }
 
 void RigidBody::draw(SDL_Renderer* renderer) {
@@ -357,11 +357,11 @@ void RigidBody::reset_color() {
     }
 }
 
-std::string RigidBody::dump(bool gravity_enabled) const {
+std::string RigidBody::dump(double gravity) const {
     std::string body_info("Selected body infos : \n-----------------\n");
-    std::string E_m("Mechanical energy : " + truncate_to_string(energy(gravity_enabled)) + " J\n");
+    std::string E_m("Mechanical energy : " + truncate_to_string(energy(gravity)) + " J\n");
     std::string E_k("kinetic energy : " + truncate_to_string(k_energy()) + " J\n");
-    std::string E_pp("potential energy : " + truncate_to_string(p_energy()) + " J\n");
+    std::string E_pp("potential energy : " + truncate_to_string(p_energy(gravity)) + " J\n");
     std::string mass("mass : " + truncate_to_string(m_mass) + " kg\n");
     std::string x("x : " + truncate_to_string(m_pos.x) + " m\n");
     std::string y("y : " + truncate_to_string(m_pos.y) + " m\n");

@@ -47,9 +47,9 @@ public:
     void set_linear_vel(const Vector2 vel);
     void set_angular_vel(const double omega);
     
-    double energy(bool gravity_enabled) const;
+    double energy(double gravity) const;
     double k_energy() const;
-    double p_energy() const;
+    double p_energy(double gravity) const;
 
     void draw(SDL_Renderer* renderer);
     void draw_trace(SDL_Renderer* renderer, bool update_trace);
@@ -59,7 +59,7 @@ public:
     void colorize(const SDL_Color color);
     void reset_color();
 
-    std::string dump(bool gravity_enabled) const;
+    std::string dump(double gravity) const;
 
     inline Vector2 get_a() const { return m_acc; }
     inline Vector2 get_v() const { return m_vel; }
