@@ -165,7 +165,7 @@ Manifold collide_circle_polygon(Shape* a, Shape* b) {
     const uint8_t vertices_count(b->get_count());
     const Vector2 centroid_a(a->get_centroid());
 
-    result.depth = INT_MAX;
+    // result.depth = INT_MAX;
 
     // Separation Axis Theorem
     for (uint8_t i(0); i < vertices_count; ++i) {
@@ -189,7 +189,7 @@ Manifold collide_circle_polygon(Shape* a, Shape* b) {
                 result.intersecting = true;
                 result.depth = abs(support_dist);
                 result.normal = -normal;
-                result.contact_points[0] = u + vertices[i] + result.normal * result.depth;
+                result.contact_points[0] = u + vertices[i] - result.normal * 0.5 * result.depth;
                 result.count = 1;
                 break;
             }
@@ -197,7 +197,8 @@ Manifold collide_circle_polygon(Shape* a, Shape* b) {
             if (a->contains_point(A)) {
                 double depth(a->get_radius() - (A - centroid_a).norm());
 
-                if (depth < result.depth) {
+                if (depth > result.depth) {
+                    result.intersecting = true;
                     result.normal = (A - centroid_a).normalized();
                     result.depth = depth;
                     result.contact_points[0] = A;
@@ -206,10 +207,11 @@ Manifold collide_circle_polygon(Shape* a, Shape* b) {
             }else if (a->contains_point(B)) {
                 double depth(a->get_radius() - (B - centroid_a).norm());
 
-                if (depth < result.depth) {
+                if (depth > result.depth) {
+                    result.intersecting = true;
                     result.normal = (B - centroid_a).normalized();
                     result.depth = depth;
-                    result.contact_points[0] = B;
+                    result.contact_points[0] = B + result.normal * 0.5 * result.depth;
                     result.count = 1;
                 }
             }
