@@ -119,7 +119,7 @@ void Spring::draw(SDL_Renderer* renderer) {
 
 #ifdef DEBUG
     SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-    render_point(renderer, equilibrum_pos);
+    render_point(renderer, equilibrium_pos);
 #endif
 }
 
