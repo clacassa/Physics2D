@@ -10,11 +10,11 @@ void Settings::reset() {
     draw_body_trajectory = 0;
     draw_center_of_mass = 0;
 #ifdef DEBUG
-    highlight_collisions = 1;
-    draw_contact_points = 1;
-    draw_collision_normal = 1;
-    draw_bounding_boxes = 1;
-    draw_distance_proxys = 1;
+    highlight_collisions = 0;
+    draw_contact_points = 0;
+    draw_collision_normal = 0;
+    draw_bounding_boxes = 0;
+    draw_distance_proxys = 0;
 #else
     highlight_collisions = 0;
     draw_contact_points = 0;

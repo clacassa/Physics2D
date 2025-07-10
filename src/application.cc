@@ -95,6 +95,7 @@ int Application::run() {
         while (SDL_PollEvent(&e) != 0) {
             parse_event(e);
         }
+        m_world.set_gravity(g * m_settings.enable_gravity);
 
         ImGui_ImplSDLRenderer2_NewFrame();
         ImGui_ImplSDL2_NewFrame();
@@ -243,6 +244,11 @@ void Application::parse_keybd_event(SDL_Event& keybd_event) {
             spring_ptr = nullptr;
             demo_simple_pendulum();
             break;
+        case SDLK_5:
+            m_world.destroy_all();
+            spring_ptr = nullptr;
+            demo_rigidbody();
+            break;
         case SDLK_1:
             m_ctrl.editor.active = false;
             break;
@@ -261,7 +267,8 @@ void Application::parse_keybd_event(SDL_Event& keybd_event) {
             }
             break;
         case SDLK_g:
-            m_world.toggle_gravity();
+            m_settings.enable_gravity = !m_settings.enable_gravity;
+            m_world.set_gravity(g * m_settings.enable_gravity);
             break;
         case SDLK_n:
             m_world.focus_next();
@@ -290,7 +297,7 @@ void Application::parse_keybd_event(SDL_Event& keybd_event) {
             if (!m_ctrl.editor.active) {
                 RigidBodyDef body_def;
                 body_def.position = mouse;
-                Polygon box_shape(create_box(0.5 * SCENE_WIDTH * (0.025 + 0.001 * (rand() % 10)), 0.5 * SCENE_WIDTH * (0.025 + 0.001 * (rand() % 10))));
+                Polygon box_shape(create_box((5 + rand() % 50) / RENDER_SCALE, (5 + rand() % 50) / RENDER_SCALE));
                 m_world.add_body(body_def, box_shape);
             }else {
                 RigidBodyDef body_def;
@@ -496,8 +503,9 @@ void Application::demo_collision() {
         m_world.add_body(body_def, ball);
     }
 
-    m_world.disable_gravity();
     m_world.disable_walls();
+    m_world.set_gravity(0);
+    m_settings.enable_gravity = 0;
     m_settings.draw_body_trajectory = 0;
 }
 
@@ -519,9 +527,108 @@ void Application::demo_stacking() {
             m_world.add_body(body_def, square_box);
         }
     }
-    m_world.enable_gravity();
     m_world.disable_walls();
+    m_world.set_gravity(g);
+    m_settings.enable_gravity = 1;
     m_settings.draw_body_trajectory = 0;
+}
+
+void Application::demo_rigidbody() {
+    const double ground_height(0.25);
+    RigidBodyDef def;
+    def.type = STATIC;
+    def.position = {SCENE_WIDTH * 2, -ground_height};
+    Polygon ground_box(create_box(SCENE_WIDTH * 2, ground_height));
+    m_world.add_body(def, ground_box);
+
+    // Cubes and lever
+    const double cube_size(2);
+    Polygon cube(create_square(cube_size));
+    def.type = DYNAMIC;
+    def.position = {cube_size * 2, cube_size};
+    RigidBody* massive_cube(m_world.add_body(def, cube));
+
+    const double bar_height(0.125);
+    const double bar_length(cube_size * 2);
+    Polygon thin_bar(create_box(bar_length, bar_height));
+    def.position = {cube_size * 3, cube_size * 2 + bar_height};
+    RigidBody* lever(m_world.add_body(def, thin_bar));
+
+    const double small_cube_size(2 * bar_height);
+    const Vector2 placeholder(massive_cube->get_p() + Vector2(0, cube_size + 2 * bar_height));
+    cube = create_square(small_cube_size);
+    def.position = placeholder + Vector2(-small_cube_size, small_cube_size);
+    m_world.add_body(def, cube);
+    def.position = placeholder + Vector2(small_cube_size, small_cube_size);
+    m_world.add_body(def, cube);
+    for (int i (0); i < 4; ++i) {
+        def.position = placeholder + Vector2(0, (3 + 2 * i) * small_cube_size);
+        m_world.add_body(def, cube);
+    }
+
+    cube = create_square(cube_size * 0.5);
+    def.position = lever->get_p() + Vector2(bar_length - cube_size * 0.5, cube_size * 4);
+    m_world.add_body(def, cube);
+
+
+    // Seesaw
+    Circle pivot(0.5);
+    const double seesaw_pos(SCENE_WIDTH * 1.5);
+    def.position = {seesaw_pos, 0.5};
+    m_world.add_body(def, pivot);
+
+    const double seesaw_height(bar_height);
+    const double seesaw_length(bar_length);
+    Polygon seesaw(create_box(seesaw_length, seesaw_height));
+    def.position = {seesaw_pos, 1 + seesaw_height};
+    m_world.add_body(def, seesaw);
+
+    const double r_cube_size(cube_size * 0.5);
+    cube = create_square(r_cube_size);
+    def.position = {seesaw_pos + seesaw_length - r_cube_size, 1 + seesaw_height * 2 + r_cube_size};
+    m_world.add_body(def, cube);
+
+    cube = create_square(small_cube_size);
+    def.position = {seesaw_pos - seesaw_length + small_cube_size, 1 + seesaw_height * 2 + small_cube_size};
+    m_world.add_body(def, cube);
+
+
+    // Balls collision propagation
+    Circle ball(0.25);
+    const double mark(SCENE_WIDTH * 2.5);
+    for (int i(0); i < 10; ++i) {
+        def.position = {mark + 0.5 * i, 0.25};
+        m_world.add_body(def, ball);
+    }
+    def.position = {mark - 20 * 0.25, 0.25};
+    def.velocity = {10, 0};
+    m_world.add_body(def, ball);
+
+
+    // Newton pendulums
+    for (int i(0); i < 10; ++i) {
+        RigidBodyDef body_def;
+        body_def.position = {mark + 0.5 * i, SCENE_HEIGHT * 0.5};
+        body_def.type = STATIC;
+        body_def.enabled = false;
+        Polygon anchor_box(create_box(0.5, 0.25));
+        RigidBody* anchor(m_world.add_body(body_def, anchor_box));
+
+        const double length(3);
+        if (i == 0) {
+            body_def.position = anchor->get_p() + Vector2(-length, 0);
+            const double max_angle(PI / 2);
+            body_def.velocity = {0, -(1 - cos(max_angle)) * sqrt(2*g*length)};
+        }else {
+            body_def.position = anchor->get_p() + Vector2(0, -length);
+        }
+        body_def.type = DYNAMIC;
+        body_def.enabled = true;
+        Circle circle(0.25);
+        RigidBody* body_1(m_world.add_body(body_def, circle));
+
+        m_world.add_spring(anchor->get_p(), body_1->get_p(), Spring::UNDAMPED, spring_stiffness_infinite);
+    }
 }
 
 void Application::demo_double_pendulum() {
@@ -543,10 +650,11 @@ void Application::demo_double_pendulum() {
     m_world.add_spring(anchor->get_p(), body_1->get_p(), Spring::UNDAMPED, spring_stiffness_infinite);
     m_world.add_spring(body_1->get_p(), body_2->get_p(), Spring::UNDAMPED, spring_stiffness_infinite);
 
-    m_world.enable_gravity();
     m_world.disable_walls();
     m_world.focus_at(2);
     body_id_changed = 1;
+    m_world.set_gravity(g);
+    m_settings.enable_gravity = 1;
     m_settings.draw_body_trajectory = 1;
 }
 
@@ -560,7 +668,7 @@ void Application::demo_simple_pendulum() {
 
     const double length(3);
     body_def.position = anchor->get_p() + Vector2(0, -length);
-    const double max_angle(PI);
+    const double max_angle(PI / 2);
     body_def.velocity = {(1 - cos(max_angle)) * sqrt(2*g*length), 0};
     body_def.type = DYNAMIC;
     body_def.enabled = true;
@@ -569,9 +677,10 @@ void Application::demo_simple_pendulum() {
 
     m_world.add_spring(anchor->get_p(), body_1->get_p(), Spring::UNDAMPED, spring_stiffness_infinite);
 
-    m_world.enable_gravity();
     m_world.disable_walls();
     m_world.focus_on_position(body_1->get_p());
+    m_world.set_gravity(g);
+    m_settings.enable_gravity = 1;
     m_settings.draw_body_trajectory = 1;
 }
 
@@ -658,8 +767,9 @@ void Application::demo_springs() {
 
     m_world.add_spring(tractor->get_p(), pulled_mass->get_p(), Spring::UNDAMPED, spring_stiffness_default);
 
-    m_world.enable_gravity();
     m_world.disable_walls();
+    m_world.set_gravity(g);
+    m_settings.enable_gravity = 1;
     m_settings.draw_body_trajectory = 0;
 }
 
@@ -996,6 +1106,7 @@ void Application::show_obj_dynamics_plot(const RigidBody* obj) {
     }
 
     static ScrollingBuffer pos_data_x, pos_data_y, vel_data_x, vel_data_y;
+    static ScrollingBuffer energy, k_energy, p_energy;;
     static float t(0);
     static float history(10.0f); // Plot last 10s
 
@@ -1004,8 +1115,11 @@ void Application::show_obj_dynamics_plot(const RigidBody* obj) {
         pos_data_y.erase();
         vel_data_x.erase();
         vel_data_y.erase();
+        energy.erase();
+        k_energy.erase();
+        p_energy.erase();;
     }
-    if (m_ctrl.simulation.running) {
+    if (1) {
         t += ImGui::GetIO().DeltaTime;
         Vector2 pos(obj->get_p());
         Vector2 vel(obj->get_v());
@@ -1013,6 +1127,9 @@ void Application::show_obj_dynamics_plot(const RigidBody* obj) {
         pos_data_y.add_point(t, pos.y);
         vel_data_x.add_point(t, vel.x);
         vel_data_y.add_point(t, vel.y);
+        energy.add_point(t, obj->energy(m_settings.enable_gravity));
+        k_energy.add_point(t, obj->k_energy());
+        p_energy.add_point(t, obj->p_energy(m_world.get_gravity()));
     }
 
     ImPlotAxisFlags flags(ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_RangeFit);
@@ -1023,6 +1140,15 @@ void Application::show_obj_dynamics_plot(const RigidBody* obj) {
             ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 20);
             ImPlot::PlotLine("x(t)", &pos_data_x.data[0].x, &pos_data_x.data[0].y, pos_data_x.data.size(), 0, pos_data_x.offset, 2 * sizeof(float));
             ImPlot::PlotLine("y(t)", &pos_data_y.data[0].x, &pos_data_y.data[0].y, pos_data_y.data.size(), 0, pos_data_y.offset, 2 * sizeof(float));
+            ImPlot::EndPlot();
+        }
+        if (ImPlot::BeginPlot("##Energy", ImVec2(-1,150))) {
+            ImPlot::SetupAxes(nullptr, nullptr, 0, flags);
+            ImPlot::SetupAxisLimits(ImAxis_X1, t - 30, t, ImGuiCond_Always);
+            ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 20);
+            ImPlot::PlotLine("E(t)", &energy.data[0].x, &energy.data[0].y, energy.data.size(), 0, energy.offset, 2 * sizeof(float));
+            ImPlot::PlotLine("E_k(t)", &k_energy.data[0].x, &k_energy.data[0].y, k_energy.data.size(), 0, k_energy.offset, 2 * sizeof(float));
+            ImPlot::PlotLine("E_p(t)", &p_energy.data[0].x, &p_energy.data[0].y, p_energy.data.size(), 0, p_energy.offset, 2 * sizeof(float));
             ImPlot::EndPlot();
         }
     }
@@ -1098,6 +1224,7 @@ void Application::show_settings_panel() {
     ImGui::EndGroup();
     ImGui::SameLine();
     ImGui::BeginGroup();
+    ImGui::Checkbox("Enable Gravity", &m_settings.enable_gravity);
     ImGui::Checkbox("Plot Position", &m_settings.plot_position);
     ImGui::Checkbox("Plot Velocity", &m_settings.plot_velocity);
     ImGui::Checkbox("Plot phase plane", &m_settings.plot_phase_plane);
