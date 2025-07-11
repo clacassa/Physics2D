@@ -20,6 +20,7 @@ RigidBody::RigidBody(const RigidBodyDef& def, const Shape& shape, const size_t i
     m_theta(def.rotation),
     m_density(def.density),
     m_restitution(def.restitution),
+    m_friction(def.friction),
     m_type(def.type),
     m_enabled(def.enabled),
     // m_shape(shape),
@@ -63,6 +64,7 @@ RigidBody::RigidBody(const Shape& shape, const size_t id)
     m_theta(0),
     m_density(steel_density),
     m_restitution(steel_restitution),
+    m_friction(steel_friction),
     m_type(DYNAMIC),
     m_enabled(true),
     m_id(id)
@@ -201,6 +203,17 @@ void RigidBody::set_angular_vel(const double omega) {
     }
 
     m_omega = omega;
+}
+
+void RigidBody::set_type(const BodyType type) {
+    m_type = type;
+    if (type == DYNAMIC) {
+        m_inv_mass = 1.0 / m_mass;
+        m_inv_inertia = 1.0 / m_inertia;
+    }else {
+        m_inv_mass = 0;
+        m_inv_inertia = 0;
+    }
 }
 
 double RigidBody::energy(double gravity) const {

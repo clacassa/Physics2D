@@ -19,6 +19,13 @@ constexpr double steel_restitution(0.78 * 0.75); // Restitution is reduced for t
 constexpr double steel_static_friction(0.78 * 0.75);
 constexpr double steel_dynamic_friction(0.42 * 0.75);
 
+struct Friction {
+    double f_static;
+    double f_dynamic;
+};
+
+const Friction steel_friction = {steel_static_friction, steel_dynamic_friction};
+
 struct RigidBodyDef {
     Vector2 position;
     Vector2 velocity;
@@ -26,6 +33,7 @@ struct RigidBodyDef {
     double angular_velocity = 0;
     double density = steel_density;
     double restitution = steel_restitution;
+    Friction friction = steel_friction;
     BodyType type = DYNAMIC;
     bool enabled = true;
 };
@@ -46,6 +54,7 @@ public:
     void angular_impulse(const double impulse);
     void set_linear_vel(const Vector2 vel);
     void set_angular_vel(const double omega);
+    void set_type(const BodyType type);
     
     double energy(double gravity) const;
     double k_energy() const;
@@ -73,8 +82,8 @@ public:
     inline double get_I() const { return m_inertia; }
     inline double get_inv_I() const { return m_inv_inertia; }
     inline double get_cor() const { return m_restitution; }
+    inline Friction get_friction() const { return m_friction; }
     inline BodyType get_type() const { return m_type; }
-    inline void set_type(const BodyType type) { m_type = type; }
     inline bool is_static() const { return m_type == STATIC; }
     inline bool is_dynamic() const { return m_type == DYNAMIC; }
     inline bool is_enabled() const { return m_enabled; }
@@ -108,6 +117,7 @@ protected:
      * https://en.wikipedia.org/wiki/Coefficient_of_restitution
      */
     double m_restitution;
+    Friction m_friction;
 
     BodyType m_type;
     bool m_enabled;

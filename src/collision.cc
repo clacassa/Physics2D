@@ -63,8 +63,10 @@ void solve_collision(RigidBody* a, RigidBody* b, const Manifold& collision) {
             t = (f_e - n * fe_n).normalized();
         }
 
-        double j_s(steel_static_friction * impulse);
-        double j_d(steel_dynamic_friction * impulse);
+        const Friction friction_a(a->get_friction());
+        const Friction friction_b(b->get_friction());
+        double j_s((friction_a.f_static + friction_b.f_static) * 0.5 * impulse);
+        double j_d((friction_a.f_dynamic + friction_b.f_dynamic) * 0.5 * impulse);
         // double friction(-dot2(v_r, t) / (1 / a->get_mass() + 1 / b->get_mass() + dot2(u, t)));
         double friction(dot2(v_r, t) / (a->get_inv_m() + b->get_inv_m()));
 
