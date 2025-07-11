@@ -241,9 +241,10 @@ void RigidBody::draw(SDL_Renderer* renderer) {
     }
 
     auto aabb(m_shape->get_aabb());
-    if (!camera::is_on_screen(aabb.min) && !camera::is_on_screen(aabb.max) &&
-        !camera::is_on_screen({aabb.min.x, aabb.max.y}) &&
-        !camera::is_on_screen({aabb.max.x, aabb.min.y}) && !camera::is_on_screen(m_pos)) {
+    const Vector2 world_min(camera::screen_to_world(0, 0));
+    const Vector2 world_max(camera::screen_to_world(SCREEN_WIDTH, SCREEN_HEIGHT));
+    if (aabb.max.x < world_min.x || aabb.max.y < world_max.y ||
+        aabb.min.x > world_max.x || aabb.min.y > world_min.y) {
         return;
     }
 
