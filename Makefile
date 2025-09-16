@@ -24,13 +24,13 @@ IMPLOT_OBJ = $(patsubst $(IMPLOT_DIR)%.cpp, $(OBJ_DIR)%.o, $(IMPLOT_SRC))
 ifeq ($(UNAME_S), Linux)
 	PLATFORM_MSG = "Linux"
 	INCLUDE += `pkg-config --cflags sdl2`
-	LDLIBS = `pkg-config --libs sdl2 SDL2_gfx SDL2_Image`
+	LDLIBS = `pkg-config --libs sdl2 SDL2_gfx SDL2_image`
 endif
 
 ifeq ($(OS), Windows_NT)
 	PLATFORM_MSG = "MinGW"
 	INCLUDE += `pkg-config --cflags sdl2`
-	LDLIBS = `pkg-config --libs sdl2 SDL2_gfx SDL2_Image` -mconsole
+	LDLIBS = `pkg-config --libs sdl2 SDL2_gfx SDL2_image` -mconsole
 endif
 
 #------------------------
