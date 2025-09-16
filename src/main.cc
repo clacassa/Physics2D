@@ -1,4 +1,6 @@
 #include <SDL.h>
+#include <SDL_render.h>
+#include <SDL_image.h>
 #include <iostream>
 #include "application.h"
 #include "render.h"
@@ -7,13 +9,13 @@ SDL_DisplayMode get_screen_dimensions();
 void init_window_and_renderer();
 
 const SDL_DisplayMode display_mode = get_screen_dimensions();
-#ifndef DEBUG
+ #ifndef DEBUG
 const unsigned SCREEN_WIDTH = display_mode.w;
 const unsigned SCREEN_HEIGHT = display_mode.h;
-#else
-const unsigned SCREEN_WIDTH = 1280;
-const unsigned SCREEN_HEIGHT = 720;
-#endif
+ #else
+ const unsigned SCREEN_WIDTH = 1280;
+ const unsigned SCREEN_HEIGHT = 720;
+ #endif
 
 const unsigned SCREEN_FPS = display_mode.refresh_rate;
 
@@ -64,8 +66,8 @@ void init_window_and_renderer() {
 #endif 
     std::cout << "Renderer output size: " << w << " x " << h << "\n";
 
-    // SDL_Surface* icon(IMG_Load("Spacetime_curvature.jpg"));
-    // SDL_SetWindowIcon(window, icon);
+    SDL_Surface* icon(IMG_Load("Spacetime_curvature.jpg"));
+    SDL_SetWindowIcon(window, icon);
 }
 
 SDL_DisplayMode get_screen_dimensions() {

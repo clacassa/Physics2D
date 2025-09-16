@@ -210,12 +210,24 @@ void camera::translate_world(Vector2 delta) {
     camera::position += delta;
 }
 
+void camera::set_position(const Vector2 pos) {
+    position = pos;
+}
+
 void camera::zoom_in() {
     RENDER_SCALE *= 1.1;
 }
 
 void camera::zoom_out() {
     RENDER_SCALE /= 1.1;
+}
+
+void camera::fit_width(double width) {
+    RENDER_SCALE = (double)SCREEN_WIDTH / width;
+}
+
+void camera::fit_height(double height) {
+    RENDER_SCALE = (double)SCREEN_HEIGHT / height;
 }
 
 bool camera::is_on_screen(Vector2 world_p) {

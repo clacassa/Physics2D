@@ -31,7 +31,7 @@ Application::Application(SDL_Window* window, SDL_Renderer* renderer, double w, d
     m_exit_status(0),
     m_editor(m_renderer, SCENE_WIDTH / 100),
     frame_time(0),
-    time_step(1.0 / 60.0)
+    time_step(1.0 / (60.0 > SCREEN_FPS ? 60.0 : SCREEN_FPS))
 {
     // ImGui initialisation
     IMGUI_CHECKVERSION();
@@ -535,10 +535,11 @@ void Application::demo_stacking() {
 
 void Application::demo_rigidbody() {
     const double ground_height(0.25);
+    const double ground_width(SCENE_WIDTH * 2);
     RigidBodyDef def;
     def.type = STATIC;
-    def.position = {SCENE_WIDTH * 2, -ground_height};
-    Polygon ground_box(create_box(SCENE_WIDTH * 2, ground_height));
+    def.position = {ground_width * 0.75, -ground_height};
+    Polygon ground_box(create_box(ground_width, ground_height));
     m_world.add_body(def, ground_box);
 
     // Cubes and lever
@@ -573,62 +574,91 @@ void Application::demo_rigidbody() {
 
     // Seesaw
     Circle pivot(0.5);
-    const double seesaw_pos(SCENE_WIDTH * 1.5);
+    const double seesaw_pos(SCENE_WIDTH * 1.25);
     def.position = {seesaw_pos, 0.5};
+    def.type = STATIC;
     m_world.add_body(def, pivot);
 
     const double seesaw_height(bar_height);
     const double seesaw_length(bar_length);
     Polygon seesaw(create_box(seesaw_length, seesaw_height));
     def.position = {seesaw_pos, 1 + seesaw_height};
+    def.type = DYNAMIC;
     m_world.add_body(def, seesaw);
 
     const double r_cube_size(cube_size * 0.5);
     cube = create_square(r_cube_size);
     def.position = {seesaw_pos + seesaw_length - r_cube_size, 1 + seesaw_height * 2 + r_cube_size};
+    def.friction = {steel_static_friction * 0.25, steel_dynamic_friction * 0.25};
     m_world.add_body(def, cube);
 
     cube = create_square(small_cube_size);
     def.position = {seesaw_pos - seesaw_length + small_cube_size, 1 + seesaw_height * 2 + small_cube_size};
+    def.friction = steel_friction;
     m_world.add_body(def, cube);
 
 
-    // Balls collision propagation
-    Circle ball(0.25);
-    const double mark(SCENE_WIDTH * 2.5);
-    for (int i(0); i < 10; ++i) {
-        def.position = {mark + 0.5 * i, 0.25};
-        m_world.add_body(def, ball);
-    }
-    def.position = {mark - 20 * 0.25, 0.25};
-    def.velocity = {10, 0};
-    m_world.add_body(def, ball);
-
-
-    // Newton pendulums
-    for (int i(0); i < 10; ++i) {
-        RigidBodyDef body_def;
-        body_def.position = {mark + 0.5 * i, SCENE_HEIGHT * 0.5};
-        body_def.type = STATIC;
-        body_def.enabled = false;
-        Polygon anchor_box(create_box(0.5, 0.25));
-        RigidBody* anchor(m_world.add_body(body_def, anchor_box));
-
-        const double length(3);
+    // Dominos
+    double dominos_pos(SCENE_WIDTH * 1.8);
+    double prev_domino_height(0);
+    double domino_width(5e-3);
+    for (int i(0); i < 13; ++i) {
+        RigidBodyDef domino_def;
+        const double domino_height(domino_width * 7);
+        domino_def.position = {dominos_pos + prev_domino_height * 2, domino_height};
         if (i == 0) {
-            body_def.position = anchor->get_p() + Vector2(-length, 0);
-            const double max_angle(PI / 2);
-            body_def.velocity = {0, -(1 - cos(max_angle)) * sqrt(2*g*length)};
-        }else {
-            body_def.position = anchor->get_p() + Vector2(0, -length);
+            domino_def.position.x += domino_height;
+            domino_def.rotation = -deg2rad(10);
         }
-        body_def.type = DYNAMIC;
-        body_def.enabled = true;
-        Circle circle(0.25);
-        RigidBody* body_1(m_world.add_body(body_def, circle));
-
-        m_world.add_spring(anchor->get_p(), body_1->get_p(), Spring::UNDAMPED, spring_stiffness_infinite);
+        Polygon domino(create_box(domino_width, domino_height));
+        m_world.add_body(domino_def, domino);
+        dominos_pos += prev_domino_height;
+        prev_domino_height = domino_height;
+        domino_width *= 1.5;
     }
+
+
+    // // Balls collision propagation
+    // Circle ball(0.25);
+    // const double mark(SCENE_WIDTH * 3);
+    // for (int i(0); i < 10; ++i) {
+    //     def.position = {mark + 0.5 * i, 0.25};
+    //     m_world.add_body(def, ball);
+    // }
+    // def.position = {mark - 20 * 0.25, 0.25};
+    // def.velocity = {10, 0};
+    // m_world.add_body(def, ball);
+    //
+    //
+    // // Newton pendulums
+    // for (int i(0); i < 10; ++i) {
+    //     RigidBodyDef body_def;
+    //     body_def.position = {mark + 0.5 * i, SCENE_HEIGHT * 0.5};
+    //     body_def.type = STATIC;
+    //     body_def.enabled = false;
+    //     Polygon anchor_box(create_box(0.5, 0.25));
+    //     RigidBody* anchor(m_world.add_body(body_def, anchor_box));
+    //
+    //     const double length(3);
+    //     if (i == 0) {
+    //         body_def.position = anchor->get_p() + Vector2(-length, 0);
+    //         const double max_angle(PI / 2);
+    //         body_def.velocity = {0, -(1 - cos(max_angle)) * sqrt(2*g*length)};
+    //     }else {
+    //         body_def.position = anchor->get_p() + Vector2(0, -length);
+    //     }
+    //     body_def.type = DYNAMIC;
+    //     body_def.enabled = true;
+    //     Circle circle(0.25);
+    //     RigidBody* body_1(m_world.add_body(body_def, circle));
+    //
+    //     m_world.add_spring(anchor->get_p(), body_1->get_p(), Spring::UNDAMPED, spring_stiffness_infinite);
+    // }
+
+    m_world.set_gravity(g);
+    m_settings.enable_gravity = 1;
+    // camera::fit_width(ground_width * 2);
+    // camera::set_position({ground_width, 75 * ground_height});
 }
 
 void Application::demo_double_pendulum() {
@@ -1127,9 +1157,9 @@ void Application::show_obj_dynamics_plot(const RigidBody* obj) {
         pos_data_y.add_point(t, pos.y);
         vel_data_x.add_point(t, vel.x);
         vel_data_y.add_point(t, vel.y);
-        energy.add_point(t, obj->energy(m_settings.enable_gravity));
-        k_energy.add_point(t, obj->k_energy());
-        p_energy.add_point(t, obj->p_energy(m_world.get_gravity()));
+        // energy.add_point(t, obj->energy(m_settings.enable_gravity));
+        // k_energy.add_point(t, obj->k_energy());
+        // p_energy.add_point(t, obj->p_energy(m_world.get_gravity()));
     }
 
     ImPlotAxisFlags flags(ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_RangeFit);
@@ -1142,15 +1172,15 @@ void Application::show_obj_dynamics_plot(const RigidBody* obj) {
             ImPlot::PlotLine("y(t)", &pos_data_y.data[0].x, &pos_data_y.data[0].y, pos_data_y.data.size(), 0, pos_data_y.offset, 2 * sizeof(float));
             ImPlot::EndPlot();
         }
-        if (ImPlot::BeginPlot("##Energy", ImVec2(-1,150))) {
-            ImPlot::SetupAxes(nullptr, nullptr, 0, flags);
-            ImPlot::SetupAxisLimits(ImAxis_X1, t - 30, t, ImGuiCond_Always);
-            ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 20);
-            ImPlot::PlotLine("E(t)", &energy.data[0].x, &energy.data[0].y, energy.data.size(), 0, energy.offset, 2 * sizeof(float));
-            ImPlot::PlotLine("E_k(t)", &k_energy.data[0].x, &k_energy.data[0].y, k_energy.data.size(), 0, k_energy.offset, 2 * sizeof(float));
-            ImPlot::PlotLine("E_p(t)", &p_energy.data[0].x, &p_energy.data[0].y, p_energy.data.size(), 0, p_energy.offset, 2 * sizeof(float));
-            ImPlot::EndPlot();
-        }
+        // if (ImPlot::BeginPlot("##Energy", ImVec2(-1,150))) {
+        //     ImPlot::SetupAxes(nullptr, nullptr, 0, flags);
+        //     ImPlot::SetupAxisLimits(ImAxis_X1, t - 30, t, ImGuiCond_Always);
+        //     ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 20);
+        //     ImPlot::PlotLine("E(t)", &energy.data[0].x, &energy.data[0].y, energy.data.size(), 0, energy.offset, 2 * sizeof(float));
+        //     ImPlot::PlotLine("E_k(t)", &k_energy.data[0].x, &k_energy.data[0].y, k_energy.data.size(), 0, k_energy.offset, 2 * sizeof(float));
+        //     ImPlot::PlotLine("E_p(t)", &p_energy.data[0].x, &p_energy.data[0].y, p_energy.data.size(), 0, p_energy.offset, 2 * sizeof(float));
+        //     ImPlot::EndPlot();
+        // }
     }
 
     if (m_settings.plot_velocity) {

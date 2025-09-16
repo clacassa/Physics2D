@@ -1,6 +1,7 @@
 #ifndef RENDER_H
 #define RENDER_H
 
+#include "vector2.h"
 #include <SDL_render.h>
 
 struct Vector2;
@@ -33,13 +34,21 @@ void render_polygon_fill(SDL_Renderer* renderer, Vector2* vertices, uint8_t n, u
  *  RENDER_SCALE = camera_width
  */ 
 namespace camera {
+    // Screen<->World conversions
     Vector2 world_to_screen(Vector2 world_p);
     Vector2 screen_to_world(int px, int py);
+
+    // Camera position control
     void translate_screen_x(int dx);
     void translate_screen_y(int dy);
     void translate_world(Vector2 delta);
+    void set_position(const Vector2 pos = vector2_zero);
+
+    // Camera scale control
     void zoom_in();
     void zoom_out();
+    void fit_width(double width);
+    void fit_height(double height);
 
     bool is_on_screen(Vector2 world_p);
 }
