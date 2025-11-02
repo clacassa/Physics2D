@@ -5,12 +5,6 @@
 #include <vector>
 #include <array>
 #include "vector2.h"
-#include "render.h"
-
-enum ShapeType {
-    CIRCLE,
-    POLYGON
-};
 
 constexpr uint8_t shape_max_vertices(8);
 typedef std::array<Vector2, shape_max_vertices> Vertices;
@@ -18,6 +12,16 @@ typedef std::array<Vector2, shape_max_vertices> Vertices;
 struct ConvexHull {
     Vertices points;
     uint8_t count;
+};
+
+/**
+ * @brief Computes the largest convex hull from a set of points in 2D space
+ */
+ConvexHull compute_hull(std::vector<Vector2> points);
+
+enum ShapeType {
+    CIRCLE,
+    POLYGON
 };
 
 struct AABB {

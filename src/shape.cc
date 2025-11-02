@@ -8,6 +8,62 @@
 #include <cstdint>
 #include <iostream>
 #include <SDL_render.h>
+#include <algorithm>
+
+namespace {
+    double ccw(const Vector2 p1, const Vector2 p2, const Vector2 p3) {
+        return (p2.x - p1.x)*(p3.y - p1.y) - (p2.y - p1.y)*(p3.x - p1.x);
+    }
+}
+
+ConvexHull compute_hull(std::vector<Vector2> points) {
+    Vector2 P0(points[0]);
+    std::vector<Vector2> candidates;
+    for (unsigned i(1); i < points.size(); ++i) {
+        const Vector2 p(points[i]);
+        if (p.y < P0.y) {
+            P0 = p;
+            candidates.clear();
+        }else if (p.y == P0.y) {
+            candidates.push_back(p);
+        }
+    }
+    double max(INT64_MAX);
+    for (auto p : candidates) {
+        if (p.x < max) {
+            max = p.x;
+            P0 = p;
+        }
+    }
+
+    std::sort(points.begin(), points.end(), [=](Vector2 a, Vector2 b)->bool {
+        return dot2((a - P0).normalized(), vector2_x) < dot2((b - P0).normalized(), vector2_x);
+    });
+
+    std::vector<Vector2> stack;
+    for (auto p : points) {
+        while (stack.size() > 1) {
+            const Vector2 next_to_top(stack[stack.size() - 2]);
+            const Vector2 top(stack.back());
+            if (ccw(next_to_top, top, p) <= 0) {
+                stack.pop_back();
+            }
+        }
+        stack.push_back(p);
+    }
+
+    const uint8_t count(stack.size());
+    if (count > shape_max_vertices) {
+        throw std::invalid_argument("The set of points resulted in a convex hull larger than 8 vertices");
+    }
+
+    Vertices hull;
+    for (unsigned i(0); i < count; ++i) {
+        hull[i] = stack[i];
+    }
+
+    return {hull, count};
+}
 
 Shape::Shape(ConvexHull hull, double radius, ShapeType type)
 :   m_type(type)
