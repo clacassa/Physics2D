@@ -41,7 +41,9 @@ struct RigidBodyDef {
 class RigidBody {
 public:
     RigidBody(const RigidBodyDef& def, const Shape& shape, const size_t id);
+    RigidBody(const RigidBodyDef& def, Shape* shape, const size_t id);
     RigidBody(const Shape& shape, const size_t id);
+    RigidBody(Shape* shape, const size_t id);
     virtual ~RigidBody();
 
     void step(double dt);

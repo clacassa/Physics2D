@@ -26,6 +26,7 @@ public:
     void render(SDL_Renderer* renderer, bool running, Settings& settings);
 
     RigidBody* add_body(const RigidBodyDef& body_def, const Shape& shape);
+    RigidBody* add_body(const RigidBodyDef& body_def, Shape* shape);
     void add_spring(Vector2 p1, Vector2 p2, Spring::DampingType damping, float stiffness);
     void add_force_field(const Vector2 field);
 

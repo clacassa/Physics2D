@@ -211,6 +211,17 @@ RigidBody* World::add_body(const RigidBodyDef& body_def, const Shape& shape) {
     return body;
 }
 
+RigidBody* World::add_body(const RigidBodyDef& body_def, Shape* shape) {
+    RigidBody* body;
+    body = new RigidBody(body_def, shape, body_count);
+
+    m_bodies.push_back(body);
+    m_sap.update_list(m_bodies);
+    ++body_count;
+
+    return body;
+}
+
 void World::add_spring(Vector2 p1, Vector2 p2, Spring::DampingType damping, float stiffness) {
     RigidBody* a(nullptr);
     RigidBody* b(nullptr);

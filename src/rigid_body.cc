@@ -58,6 +58,40 @@ RigidBody::RigidBody(const RigidBodyDef& def, const Shape& shape, const size_t i
     reset_color();
 }
 
+RigidBody::RigidBody(const RigidBodyDef& def, Shape* shape, const size_t id)
+:
+    m_vel(def.velocity),
+    m_pos(def.position),
+    m_omega(def.angular_velocity),
+    m_theta(def.rotation),
+    m_density(def.density),
+    m_restitution(def.restitution),
+    m_friction(def.friction),
+    m_type(def.type),
+    m_enabled(def.enabled),
+    m_shape(shape),
+    m_id(id)
+{
+    const MassProperties mp(m_shape->compute_mass_properties(m_density));
+    m_mass = mp.mass;
+    m_inertia = mp.inertia;
+
+    if (m_type != DYNAMIC) {
+        m_inv_mass = 0;
+        m_inv_inertia = 0;
+    }else {
+        m_inv_mass = 1.0 / m_mass;
+        m_inv_inertia = 1.0 / m_inertia;
+    }
+    if (m_type == STATIC) {
+        m_vel = vector2_zero;
+        m_omega = 0;
+    }
+
+    m_shape->transform(m_pos, m_theta);
+    reset_color();
+}
+
 RigidBody::RigidBody(const Shape& shape, const size_t id)
 :
     m_omega(0),
@@ -81,6 +115,38 @@ RigidBody::RigidBody(const Shape& shape, const size_t id)
             break;
     }
 
+    const MassProperties mp(m_shape->compute_mass_properties(m_density));
+    m_mass = mp.mass;
+    m_inertia = mp.inertia;
+
+    if (m_type != DYNAMIC) {
+        m_inv_mass = 0;
+        m_inv_inertia = 0;
+    }else {
+        m_inv_mass = 1.0 / m_mass;
+        m_inv_inertia = 1.0 / m_inertia;
+    }
+    if (m_type == STATIC) {
+        m_vel = vector2_zero;
+        m_omega = 0;
+    }
+
+    m_shape->transform(m_pos, m_theta);
+    reset_color();
+}
+
+RigidBody::RigidBody(Shape* shape, const size_t id)
+:
+    m_omega(0),
+    m_theta(0),
+    m_density(steel_density),
+    m_restitution(steel_restitution),
+    m_friction(steel_friction),
+    m_type(DYNAMIC),
+    m_enabled(true),
+    m_shape(shape),
+    m_id(id)
+{
     const MassProperties mp(m_shape->compute_mass_properties(m_density));
     m_mass = mp.mass;
     m_inertia = mp.inertia;
