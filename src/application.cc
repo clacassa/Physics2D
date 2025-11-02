@@ -29,7 +29,7 @@ Application::Application(SDL_Window* window, SDL_Renderer* renderer, double w, d
     m_arrow_cursor(SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW)),
     m_crosshair_cursor(SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR)),
     m_exit_status(0),
-    m_editor(m_renderer, SCENE_WIDTH / 100),
+    m_editor(m_renderer, SCENE_WIDTH / editor_ticks_default),
     frame_time(0),
     time_step(1.0 / (60.0 > SCREEN_FPS ? 60.0 : SCREEN_FPS))
 {
@@ -127,8 +127,7 @@ int Application::run() {
 
         m_world.render(m_renderer, m_ctrl.simulation.running, m_settings);
         if (m_ctrl.editor.active) {
-            m_editor.render();
-            m_editor.show_controls(&m_ctrl.editor.active);
+            m_editor.render(m_ctrl);
         }
 
         if (m_ctrl.editor.adding_spring) {
@@ -188,8 +187,15 @@ void Application::parse_event(SDL_Event& event) {
         return;
     }
 
-    if (SDL_GetCursor() != m_crosshair_cursor) {
-        SDL_SetCursor(m_crosshair_cursor);
+    // if (SDL_GetCursor() != m_crosshair_cursor) {
+    //     SDL_SetCursor(m_crosshair_cursor);
+    // }
+    if (m_ctrl.editor.active) {
+        if (SDL_GetCursor() != m_crosshair_cursor) {
+            SDL_SetCursor(m_crosshair_cursor);
+        }
+    }else if (SDL_GetCursor() == m_crosshair_cursor) {
+        SDL_SetCursor(m_arrow_cursor);  
     }
 
     if (event.type == SDL_MOUSEBUTTONDOWN) {
@@ -198,6 +204,12 @@ void Application::parse_event(SDL_Event& event) {
         parse_mouse_motion_event(event);
     }else if (event.type == SDL_MOUSEWHEEL) {
         parse_mouse_wheel_event(event);
+    }
+
+    if (m_ctrl.editor.body_creation_rdy) {
+        BodyCreator creator(m_editor.get_body_creator());
+        m_world.add_body(creator.body_def, creator.body_shape);
+        m_ctrl.editor.body_creation_rdy = false;
     }
 }
 
@@ -396,18 +408,27 @@ void Application::parse_keybd_event(SDL_Event& keybd_event) {
         case SDLK_ESCAPE:
             m_world.focus_at(-1);
             body_id_changed = 1;
+            m_ctrl.editor.adding_spring = 0;
+            m_ctrl.editor.creating_shape = 0;
             break;
     }
 }
 
 void Application::parse_mouse_button_event(SDL_Event& mouse_event) {
     Vector2 mouse(m_ctrl.input.pointer);
-    if (m_ctrl.editor.active) {
+    if (m_ctrl.editor.adding_spring || m_ctrl.editor.creating_shape) {
         mouse = m_editor.get_active_node();
     }
     
     switch (mouse_event.button.button) {
         case SDL_BUTTON_LEFT:
+            if (m_ctrl.editor.active) {
+                m_editor.on_mouse_left_click(m_ctrl);
+                if (m_ctrl.editor.adding_spring || m_ctrl.editor.creating_shape) {
+                    break;
+                }
+            }
+
             body_id_changed = m_world.focus_on_position(mouse);
             if (!body_id_changed) {
                 spring_ptr = m_world.get_spring_from_mouse(mouse);
@@ -451,18 +472,9 @@ void Application::parse_mouse_wheel_event(SDL_Event& wheel_event) {
     if (wheel_event.wheel.y > 0) {
         camera::zoom_in();
     }else {
-        if (m_ctrl.editor.active) {
-            if (RENDER_SCALE > 25) {
-                camera::zoom_out();
-            }
-        }
-        else if (RENDER_SCALE > 0.1) {
+        if (RENDER_SCALE > 0.1) {
             camera::zoom_out();
         }
-    }
-
-    if (m_ctrl.editor.active) {
-        m_editor.update_grid();
     }
     
     int x, y;
@@ -470,6 +482,11 @@ void Application::parse_mouse_wheel_event(SDL_Event& wheel_event) {
     Vector2 offset(camera::world_to_screen(m_ctrl.input.pointer) - Vector2(x, y));
     camera::translate_screen_x(offset.x);
     camera::translate_screen_y(-offset.y);
+
+    m_editor.compute_division();
+    if (m_ctrl.editor.active) {
+        m_editor.update_grid();
+    }
 }
 
 void Application::create_scene_walls() {

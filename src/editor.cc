@@ -4,75 +4,49 @@
 #include "editor.h"
 #include "render.h"
 #include "rigid_body.h"
+#include "control.h"
+
+namespace {
+    enum GridBaseDivision { POWER_OF_TWO = 2, METRIC = 5 };
+    const GridBaseDivision grid_base_division(METRIC);
+}
 
 Editor::Editor(SDL_Renderer* renderer, double division)
 :   div(division),
     active_node(0, 0),
     m_renderer(renderer),
-    body_type(DYNAMIC),
-    body_enabled(true),
-    spring_incompressible(false),
-    spring_stiffness(spring_stiffness_default),
-    spring_damping(Spring::UNDERDAMPED),
     show_help_banner(true)
 {
     update_grid();
 }
 
-void Editor::render() {
+void Editor::render(Control& control) {
     render_grid();
+
+    // Highlight the active node
+    if (control.editor.creating_shape || control.editor.adding_spring) {
+        const SDL_Color color(editing_color);
+        SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 255);
+        render_circle_fill(m_renderer, active_node, 3 / RENDER_SCALE);
+    }
+
+    show_controls(&control.editor.active, control);
+    if (control.editor.creating_shape) {
+        render_body_creation(control);
+    }
 }
 
 Vector2 Editor::track_point(Vector2 p) {
     Vector2 tracked_point;
     double dist(INT_MAX);
 
-    if (p.x >= 0 && p.y >= 0) {
-        for (size_t i(0); i < m_first_quad.size(); ++i) {
-            for (size_t j(0); j < m_first_quad[0].size(); ++j) {
-                const Vector2 node(m_first_quad[i][j]);
-                const Vector2 v(node - p);
-                double d(v.x * v.x + v.y * v.y);
-                if (d < dist) {
-                    tracked_point = node;
-                    dist = d;
-                }
-            }
-        }
-    }else if (p.x < 0 && p.y >= 0) {
-        for (size_t i(0); i < m_second_quad.size(); ++i) {
-            for (size_t j(0); j < m_second_quad[0].size(); ++j) {
-                const Vector2 node(m_second_quad[i][j]);
-                const Vector2 v(node - p);
-                double d(v.x * v.x + v.y * v.y);
-                if (d < dist) {
-                    tracked_point = node;
-                    dist = d;
-                }
-            }
-        }
-    }else if (p.x < 0 && p.y < 0) {
-        for (size_t i(0); i < m_third_quad.size(); ++i) {
-            for (size_t j(0); j < m_third_quad[0].size(); ++j) {
-                const Vector2 node(m_third_quad[i][j]);
-                const Vector2 v(node - p);
-                double d(v.x * v.x + v.y * v.y);
-                if (d < dist) {
-                    tracked_point = node;
-                    dist = d;
-                }
-            }
-        }
-    }else {
-        for (size_t i(0); i < m_fourth_quad.size(); ++i) {
-            for (size_t j(0); j < m_fourth_quad[0].size(); ++j) {
-                const Vector2 node(m_fourth_quad[i][j]);
-                const Vector2 v(node - p);
-                double d(v.x * v.x + v.y * v.y);
-                if (d < dist) {
-                    tracked_point = node;
-                    dist = d;
-                }
+    for (auto row : m_grid) {
+        for (auto node : row) {
+            const Vector2 v(node - p);
+            double d(v.x * v.x + v.y * v.y);
+            if (d < dist) {
+                tracked_point = node;
+                dist = d;
             }
         }
     }
@@ -82,82 +56,132 @@ Vector2 Editor::track_point(Vector2 p) {
 }
 
 void Editor::update_grid() {
-    // First quadrant
-    const Vector2 tr(camera::screen_to_world(SCREEN_WIDTH, 0));
-    m_first_quad.clear();
-    if (tr.x >= 0 && tr.y >= 0) {
-        m_first_quad.resize(abs(tr.y) / div + 1, std::vector<Vector2>(abs(tr.x) / div + 1));
-        for (size_t i(0); i < m_first_quad.size(); ++i) {
-            for (size_t j(0); j < m_first_quad[0].size(); ++j) {
-                m_first_quad[i][j] = Vector2(j * div, i * div);
-            }
-        }
-    }
-    // Second quadrant
+    compute_division();
+
     const Vector2 tl(camera::screen_to_world(0, 0));
-    m_second_quad.clear();
-    if (tl.x < 0 && tl.y >= 0) {
-        m_second_quad.resize(abs(tl.y) / div + 1, std::vector<Vector2>(abs(tl.x) / div + 1));
-        for (size_t i(0); i < m_second_quad.size(); ++i) {
-            for (size_t j(0); j < m_second_quad[0].size(); ++j) {
-                m_second_quad[i][j] = Vector2(j * -div, i * div);
-            }
-        }
-    }
-    // Third quadrant
-    const Vector2 bl(camera::screen_to_world(0, SCREEN_HEIGHT));
-    m_third_quad.clear();
-    if (bl.x < 0 && bl.y < 0) {
-        m_third_quad.resize(abs(bl.y) / div + 1, std::vector<Vector2>(abs(bl.x) / div + 1));
-        for (size_t i(0); i < m_third_quad.size(); ++i) {
-            for (size_t j(0); j < m_third_quad[0].size(); ++j) {
-                m_third_quad[i][j] = Vector2(j * -div, i * -div);
-            }
-        }
-    }
-    // Fourth quadrant
     const Vector2 br(camera::screen_to_world(SCREEN_WIDTH, SCREEN_HEIGHT));
-    m_fourth_quad.clear();
-    if (br.x >= 0 && br.y < 0) {
-        m_fourth_quad.resize(abs(br.y) / div + 1, std::vector<Vector2>(abs(br.x) / div + 1));
-        for (size_t i(0); i < m_fourth_quad.size(); ++i) {
-            for (size_t j(0); j < m_fourth_quad[0].size(); ++j) {
-                m_fourth_quad[i][j] = Vector2(j * div, i * -div);
-            }
+
+    m_grid.clear();
+    const double width(br.x - tl.x);
+    const double height(tl.y - br.y);
+    m_grid.resize((unsigned)(height / div) + 1, std::vector<Vector2>((unsigned)(width / div) + 1));
+    for (int i(0); i < m_grid.size(); ++i) {
+        for (int j(0); j < m_grid[0].size(); ++j) {
+            m_grid[i][j] = Vector2(((int)(tl.x / div) + j) * div, ((int)(tl.y / div) - i) * div);
         }
     }
 }
 
+void Editor::compute_division() {
+    switch (grid_base_division) {
+        case GridBaseDivision::POWER_OF_TWO: {
+            const double current_scene_width((double)SCREEN_WIDTH / RENDER_SCALE);
+            const unsigned ratio(SCENE_WIDTH / current_scene_width);
+            const unsigned inv_ratio(current_scene_width / SCENE_WIDTH);
+
+            if ((ratio & (ratio - 1)) == 0 && ratio != 0) { // If ratio is power of 2
+                div = (SCENE_WIDTH / editor_ticks_default) / ratio;
+            }else if ((inv_ratio & (inv_ratio - 1)) == 0 && inv_ratio != 0) {
+                div = (SCENE_WIDTH / editor_ticks_default) * inv_ratio;
+            }
+#ifdef DEBUG
+            std::cout << "ratio: " << ratio << "\tDIV: " << div << "\n";
+#endif
+        }
+            break;
+        case GridBaseDivision::METRIC: {
+            static bool deca(false);
+            if (deca) {
+                if (div * RENDER_SCALE > 25) {
+                    div *= 0.5;
+                    deca = !deca;
+                }else if (div * RENDER_SCALE < 10) {
+                    div *= 5;
+                    deca = !deca;
+                }
+            }else {
+                if (div * RENDER_SCALE > 50) {
+                    div *= 0.2;
+                    deca = !deca;
+                }else if (div * RENDER_SCALE < 12.5) {
+                    div *= 2;
+                    deca = !deca;
+                }
+            }
+        }
+            break;
+        default:
+            break;
+    }
+}
+
+void Editor::on_mouse_left_click(Control& control) {
+    if (!control.editor.creating_shape) {
+        return;
+    }
+
+    body_creator.points_set.push_back(active_node);
+    ++body_creator.points_count;
+    switch (body_creator.shape_id) {
+        case BodyCreator::ShapeID::CIRCLE:
+            if (body_creator.points_count > 1) {
+                control.editor.body_creation_rdy = create_circle();
+                control.editor.creating_shape = false;
+                body_creator.points_set.clear();
+                body_creator.points_count = 0;
+            }
+            break;
+        case BodyCreator::ShapeID::RECTANGLE:
+            if (body_creator.points_count > 1) {
+                control.editor.body_creation_rdy = create_rectangle();
+                control.editor.creating_shape = false;
+                body_creator.points_set.clear();
+                body_creator.points_count = 0;
+            }
+            break;
+        case BodyCreator::ShapeID::POLYGON:
+            body_creator.points_set.push_back(active_node);
+            break;
+        default:
+            break;
+    }
+}
+
+bool Editor::create_circle() {
+    const Vector2 p0(body_creator.points_set[0]);
+    const Vector2 A(body_creator.points_set[1]);
+    const double radius((A - p0).norm());
+    if (radius == 0) {
+        return false;
+    }
+    body_creator.body_shape = new Circle(radius);
+    body_creator.body_def.position = p0;
+    return true;
+}
+
+bool Editor::create_rectangle() {
+    const Vector2 p1(body_creator.points_set[0]);
+    const Vector2 p2(body_creator.points_set[1]);
+    const double hw(abs((p2 - p1).x) * 0.5);
+    const double hh(abs((p2 - p1).y) * 0.5);
+    if (hw == 0 || hh == 0) {
+        return false;
+    }
+    body_creator.body_shape = new Polygon(create_box(hw, hh));
+    body_creator.body_def.position = Vector2(std::min(p1.x, p2.x), std::min(p1.y, p2.y)) + Vector2(hw, hh);
+    return true;
+}
+
 void Editor::render_grid() {
     // Render the nodes
-    unsigned i, j = 0;
     SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 127);
-    for (auto row : m_first_quad) {
-        for (auto node : row) {
-            render_point(m_renderer, node);
-            ++j;
-        }
-        ++i;
-    }
-    for (auto row : m_second_quad) {
+    for (auto row : m_grid) {
         for (auto node : row) {
             render_point(m_renderer, node);
         }
-    }
-    for (auto row : m_third_quad) {
-        for (auto node : row) {
-            render_point(m_renderer, node);
-        }
-    }
-    for (auto row : m_fourth_quad) {
-        for (auto node : row) {
-            render_point(m_renderer, node);
-        }
-    }
-    // Highlight the active node
-    SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 127);
-    render_circle_fill(m_renderer, active_node, 3 / RENDER_SCALE);
-    // Render the median axis with graduations
+    }    
+    
+    // Render the median axis with ticks
     SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 127);
     const double x_axis_pos(0);
     const double x_axis_screen_pos(camera::world_to_screen({0, x_axis_pos}).y);
@@ -165,64 +189,41 @@ void Editor::render_grid() {
     const double y_axis_screen_pos(camera::world_to_screen({y_axis_pos, 0}).x);
     SDL_RenderDrawLineF(m_renderer, 0, x_axis_screen_pos, SCREEN_WIDTH, x_axis_screen_pos);
     SDL_RenderDrawLineF(m_renderer, y_axis_screen_pos, 0, y_axis_screen_pos, SCREEN_HEIGHT);
+
     double p1, p2;
-    for (auto row : m_first_quad) {
-        if (row.empty()) {
-            continue;
+    const Vector2 tl(camera::screen_to_world(0, 0));
+    const Vector2 br(camera::screen_to_world(SCREEN_WIDTH, SCREEN_HEIGHT));
+    for (unsigned i(0); i < m_grid.size(); ++i) {
+        const double y_ref(m_grid[i][0].y);
+        double tick_size(2.5);
+        if (abs((int)(tl.y / div) - (int)i) % 5 == 0) {
+            SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 15);
+            render_line(m_renderer, {tl.x, y_ref}, {br.x, y_ref});
+            tick_size = 7.5;
+            
         }
-        if (row[0].y - floor(row[0].y) == 0) {
-            p1 = y_axis_pos - 7.5 / RENDER_SCALE;
-            p2 = y_axis_pos + 7.5 / RENDER_SCALE;
-        }else {
-            p1 = y_axis_pos - 2.5 / RENDER_SCALE;
-            p2 = y_axis_pos + 2.5 / RENDER_SCALE;
-        }
+        p1 = y_axis_pos - tick_size / RENDER_SCALE;
+        p2 = y_axis_pos + tick_size / RENDER_SCALE;
         SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 127);
-        render_line(m_renderer, {p1, row[0].y}, {p2, row[0].y});
-        SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 63);
+        render_line(m_renderer, {p1, y_ref}, {p2, y_ref});
     }
-    for (auto node : m_first_quad[0]) {
-        if (node.x - floor(node.x) == 0) {
-            p1 = x_axis_pos - 7.5 / RENDER_SCALE;
-            p2 = x_axis_pos + 7.5 / RENDER_SCALE;
-        }else {
-            p1 = x_axis_pos - 2.5 / RENDER_SCALE;
-            p2 = x_axis_pos + 2.5 / RENDER_SCALE;
+
+    for (unsigned j(0); j < m_grid[0].size(); ++j) {
+        const double x_ref(m_grid[0][j].x);
+        double tick_size(2.5);
+        if (abs((int)(tl.x / div) + (int)j) % 5 == 0) {
+            SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 15);
+            render_line(m_renderer, {x_ref, tl.y}, {x_ref, br.y});
+            tick_size = 7.5;
         }
+        p1 = x_axis_pos - tick_size / RENDER_SCALE;
+        p2 = x_axis_pos + tick_size / RENDER_SCALE;
         SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 127);
-        render_line(m_renderer, {node.x, p1}, {node.x, p2});
-        SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 63);
-    }
-    for (auto node : m_second_quad[0]) {
-        if (node.x - floor(node.x) == 0) {
-            p1 = x_axis_pos - 7.5 / RENDER_SCALE;
-            p2 = x_axis_pos + 7.5 / RENDER_SCALE;
-        }else {
-            p1 = x_axis_pos - 2.5 / RENDER_SCALE;
-            p2 = x_axis_pos + 2.5 / RENDER_SCALE;
-        }
-        SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 127);
-        render_line(m_renderer, {node.x, p1}, {node.x, p2});
-        SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 63);
-    }
-    for (auto row : m_third_quad) {
-        if (row.empty()) {
-            continue;
-        }
-        if (row[0].y - floor(row[0].y) == 0) {
-            p1 = y_axis_pos - 7.5 / RENDER_SCALE;
-            p2 = y_axis_pos + 7.5 / RENDER_SCALE;
-        }else {
-            p1 = y_axis_pos - 2.5 / RENDER_SCALE;
-            p2 = y_axis_pos + 2.5 / RENDER_SCALE;
-        }
-        SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 127);
-        render_line(m_renderer, {p1, row[0].y}, {p2, row[0].y});
-        SDL_SetRenderDrawColor(m_renderer, 255, 255, 255, 63);
+        render_line(m_renderer, {x_ref, p1}, {x_ref, p2});
     }
 }
 
-void Editor::show_controls(bool* editor_active) {
+void Editor::show_controls(bool* editor_active, Control& control) {
     const float pad(10.0);
     const ImGuiViewport* viewport(ImGui::GetMainViewport());
     ImVec2 work_pos(viewport->WorkPos);
@@ -235,29 +236,99 @@ void Editor::show_controls(bool* editor_active) {
     if (!show_help_banner) {
         return;
     }
-    if (ImGui::Begin("Editor controls", &show_help_banner, window_flags)) {
-        static int new_body_type(DYNAMIC);
-        const char* items_type("Static\0Kinematic\0Dynamic\0");
-        ImGui::Combo("Type", &new_body_type, items_type);
-        body_type = static_cast<BodyType>(new_body_type);
+    if (!ImGui::Begin("Editor controls", &show_help_banner, window_flags)) {
+        ImGui::End();
+        return;
+    }
 
-        ImGui::Checkbox("enabled", &body_enabled);
+    if (ImGui::BeginTabBar("##tabs", ImGuiTabBarFlags_NoTooltip)) {
+        if (ImGui::BeginTabItem("Body Creation Tool")) {
+            ImGui::SeparatorText("Geometric Properties");
+            static int shape_creation_id(0);
+            const char* items_shape_creation("CIRCLE\0RECTANGLE\0SQUARE\0POLYGON\0");
+            ImGui::Combo("Select a shape type", &shape_creation_id, items_shape_creation);
+            body_creator.shape_id = (BodyCreator::ShapeID)shape_creation_id;
+            
+            ImGui::SeparatorText("Body Properties");
+            static int new_body_type(DYNAMIC);
+            const char* items_type("STATIC\0KINEMATIC\0DYNAMIC\0");
+            ImGui::Combo("Type", &new_body_type, items_type);
+            body_creator.body_def.type = static_cast<BodyType>(new_body_type);
 
-        ImGui::SeparatorText("Spring type");
-        ImGui::Checkbox("Infinitely stiff", &spring_incompressible);
-        static float k(spring_stiffness_default);
-        ImGui::BeginDisabled(spring_incompressible);
-        if (spring_incompressible) {
-            k = spring_stiffness_infinite;
+            ImGui::Checkbox("Physics enabled", &body_creator.body_def.enabled);
+
+            if (control.editor.creating_shape) {
+                ImGui::BeginDisabled();
+                if (ImGui::Button("Create Body")) {
+                    control.editor.creating_shape = true;
+                    control.editor.shape_creation_id = shape_creation_id;
+                }
+                ImGui::EndDisabled();
+            }else {
+                if (ImGui::Button("Create Body")) {
+                    control.editor.creating_shape = true;
+                    control.editor.shape_creation_id = shape_creation_id;
+                }
+                if (!control.editor.creating_shape && body_creator.points_count) {
+                    body_creator.points_set.clear();
+                    body_creator.points_count = 0;
+                }
+            }
+
+            ImGui::EndTabItem();
         }
-        ImGui::InputFloat("Stiffness", &k);
-        ImGui::EndDisabled();
-        spring_stiffness = k;
 
-        static int new_damping_type(0);
-        const char* items_damping("Undamped\0Underdamped\0Critically damped\0Overdamped\0");
-        ImGui::Combo("Damping", &new_damping_type, items_damping);
-        spring_damping = static_cast<Spring::DampingType>(new_damping_type);
+        if (ImGui::BeginTabItem("Spring Creation Tool")) {
+            ImGui::SeparatorText("Stiffness");
+            ImGui::Checkbox("Infinite Stiffness", &spring_creator.incompressible);
+            static float k(spring_stiffness_default);
+            ImGui::BeginDisabled(spring_creator.incompressible);
+            if (spring_creator.incompressible) {
+                k = spring_stiffness_infinite;
+            }
+            ImGui::InputFloat("Stiffness", &k);
+            ImGui::EndDisabled();
+            spring_creator.stiffness = k;
+
+            static int new_damping_type(0);
+            const char* items_damping("Undamped\0Underdamped\0Critically damped\0Overdamped\0");
+            ImGui::Combo("Damping", &new_damping_type, items_damping);
+            spring_creator.damping_type = static_cast<Spring::DampingType>(new_damping_type);
+
+            ImGui::EndTabItem();
+        }
+        ImGui::EndTabBar();
     }
     ImGui::End();
+}
+
+void Editor::render_body_creation(Control& control) {
+    switch (body_creator.shape_id) {
+        case BodyCreator::ShapeID::CIRCLE: 
+        if (body_creator.points_count > 0) {
+            const Vector2 p1(body_creator.points_set[0]);
+            const Vector2 p2(active_node);
+            const double radius((p2 - p1).norm());
+            SDL_SetRenderDrawColor(m_renderer, editing_color.r, editing_color.g, editing_color.b, 255);
+            render_circle(m_renderer, p1, radius);
+            render_line(m_renderer, p1, p2);
+        }
+            break;
+        case BodyCreator::ShapeID::RECTANGLE:
+            if (body_creator.points_count > 0) {
+                const Vector2 p1(body_creator.points_set[0]);
+                const Vector2 p2(active_node);
+                const float w((p2 - p1).x);
+                const float h((p2 - p1).y);
+                const Vector2 center(p1 + Vector2(w * 0.5, h * 0.5));
+                SDL_SetRenderDrawColor(m_renderer, editing_color.r, editing_color.g, editing_color.b, editing_color.a);
+                render_rectangle(m_renderer, center, w, h);
+                render_line(m_renderer, p1, p2);
+            }
+            break;
+        case BodyCreator::ShapeID::POLYGON:
+            break;
+        default:
+            break;
+    }
 }

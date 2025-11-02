@@ -65,6 +65,7 @@ void init_window_and_renderer() {
     }
 #endif 
     std::cout << "Renderer output size: " << w << " x " << h << "\n";
+    std::cout << "Render scale: " << RENDER_SCALE << "\n";
 
     SDL_Surface* icon(IMG_Load("icons/Spacetime_curvature.jpg"));
     SDL_SetWindowIcon(window, icon);

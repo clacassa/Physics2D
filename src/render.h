@@ -12,6 +12,7 @@ const SDL_Color kinematic_body_color({189, 183, 107, 255});
 const SDL_Color dynamic_body_color({255, 180, 180, 255});
 const SDL_Color focus_color({255, 0, 255, 255});
 const SDL_Color spring_color({160, 160, 160, 255});
+const SDL_Color editing_color({106, 90, 205, 255});
 
 extern const unsigned SCREEN_WIDTH;
 extern const unsigned SCREEN_HEIGHT;
