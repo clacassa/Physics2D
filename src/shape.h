@@ -11,7 +11,7 @@ typedef std::array<Vector2, shape_max_vertices> Vertices;
 
 struct ConvexHull {
     Vertices points;
-    uint8_t count;
+    uint8_t count = 0;
 };
 
 /**

@@ -17,8 +17,14 @@ namespace {
 }
 
 ConvexHull compute_hull(std::vector<Vector2> points) {
+    ConvexHull hull;
+    if (points.size() < 3) {
+        return hull;
+    }
+
     Vector2 P0(points[0]);
     std::vector<Vector2> candidates;
+    candidates.push_back(P0);
     for (unsigned i(1); i < points.size(); ++i) {
         const Vector2 p(points[i]);
         if (p.y < P0.y) {
@@ -36,8 +42,19 @@ ConvexHull compute_hull(std::vector<Vector2> points) {
         }
     }
 
+    // Place P0 at the front, then remove from list
+    for (unsigned i(0); i < points.size(); ++i) {
+        if (points[i] == P0) {
+            const Vector2 temp(points[0]);
+            points[0] = P0;
+            points[i] = temp;
+            break;
+        }
+    }
+    points.erase(points.begin());
+
     std::sort(points.begin(), points.end(), [=](Vector2 a, Vector2 b)->bool {
-        return dot2((a - P0).normalized(), vector2_x) < dot2((b - P0).normalized(), vector2_x);
+        return dot2((a - P0).normalized(), vector2_x) > dot2((b - P0).normalized(), vector2_x);
     });
 
     std::vector<Vector2> stack;
@@ -45,24 +62,31 @@ ConvexHull compute_hull(std::vector<Vector2> points) {
         while (stack.size() > 1) {
             const Vector2 next_to_top(stack[stack.size() - 2]);
             const Vector2 top(stack.back());
-            if (ccw(next_to_top, top, p) <= 0) {
-                stack.pop_back();
+            if (ccw(next_to_top, top, p) > 0) {
+                break;
             }
+            stack.pop_back();
         }
         stack.push_back(p);
     }
 
+    // Put back P0 to set of points
+    stack.insert(stack.begin(), P0);
+
     const uint8_t count(stack.size());
     if (count > shape_max_vertices) {
-        throw std::invalid_argument("The set of points resulted in a convex hull larger than 8 vertices");
+#ifdef DEBUG
+        std::cout << "The set of points resulted in a convex hull larger than 8 vertices\n";
+#endif
+        return hull;
     }
 
-    Vertices hull;
     for (unsigned i(0); i < count; ++i) {
-        hull[i] = stack[i];
+        hull.points[i] = stack[i];
     }
+    hull.count = count;
 
-    return {hull, count};
+    return hull;
 }
 
 Shape::Shape(ConvexHull hull, double radius, ShapeType type)

@@ -73,7 +73,7 @@ private:
 
     bool create_circle();
     bool create_rectangle();
-    void create_polygon();
+    bool create_polygon();
 
     void render_grid();
     void show_controls(bool* editor_active, Control& control);

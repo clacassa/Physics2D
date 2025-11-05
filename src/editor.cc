@@ -139,8 +139,16 @@ void Editor::on_mouse_left_click(Control& control) {
                 body_creator.points_count = 0;
             }
             break;
-        case BodyCreator::ShapeID::POLYGON:
-            body_creator.points_set.push_back(active_node);
+        case BodyCreator::ShapeID::POLYGON: {
+            const auto points(body_creator.points_set);
+            if (body_creator.points_count > 1 && points.back() == points.front()) {
+                body_creator.points_set.pop_back();
+                control.editor.body_creation_rdy = create_polygon();
+                control.editor.creating_shape = false;
+                body_creator.points_set.clear();
+                body_creator.points_count = 0;
+            }
+        }
             break;
         default:
             break;
@@ -169,6 +177,17 @@ bool Editor::create_rectangle() {
     }
     body_creator.body_shape = new Polygon(create_box(hw, hh));
     body_creator.body_def.position = Vector2(std::min(p1.x, p2.x), std::min(p1.y, p2.y)) + Vector2(hw, hh);
+    return true;
+}
+
+bool Editor::create_polygon() {
+    const ConvexHull hull(compute_hull(body_creator.points_set));
+    if (hull.count == 0) {
+        return false;
+    }
+    body_creator.body_shape = new Polygon(hull);
+    body_creator.body_shape->compute_mass_properties(body_creator.body_def.density);
+    body_creator.body_def.position = body_creator.body_shape->get_centroid();
     return true;
 }
 
@@ -245,7 +264,7 @@ void Editor::show_controls(bool* editor_active, Control& control) {
         if (ImGui::BeginTabItem("Body Creation Tool")) {
             ImGui::SeparatorText("Geometric Properties");
             static int shape_creation_id(0);
-            const char* items_shape_creation("CIRCLE\0RECTANGLE\0SQUARE\0POLYGON\0");
+            const char* items_shape_creation("CIRCLE\0RECTANGLE\0POLYGON\0");
             ImGui::Combo("Select a shape type", &shape_creation_id, items_shape_creation);
             body_creator.shape_id = (BodyCreator::ShapeID)shape_creation_id;
             
@@ -326,7 +345,16 @@ void Editor::render_body_creation(Control& control) {
                 render_line(m_renderer, p1, p2);
             }
             break;
-        case BodyCreator::ShapeID::POLYGON:
+        case BodyCreator::ShapeID::POLYGON: 
+            if (body_creator.points_count) {
+                const auto points(body_creator.points_set);
+                SDL_SetRenderDrawColor(m_renderer, editing_color.r, editing_color.g, editing_color.b, editing_color.a);
+                unsigned i(0);
+                for (i = 0; i < body_creator.points_count - 1; ++i) {
+                    render_line(m_renderer, points[i], points[i + 1]);
+                }
+                render_line(m_renderer, points[i], active_node);
+            }
             break;
         default:
             break;
