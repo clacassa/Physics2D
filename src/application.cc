@@ -1107,7 +1107,6 @@ bool Application::show_placeholder_shape(Shape* shape) {
                 ImGui::TreeNodeEx("Field", flags_child, "%s", shape_fields[i]);
             }else {
                 ImGui::TreeNodeEx("Field", flags_child, "Vertex_%u", vertex_id);
-                ++vertex_id;
             }
 
             ImGui::TableSetColumnIndex(1);
@@ -1128,6 +1127,7 @@ bool Application::show_placeholder_shape(Shape* shape) {
             if (i >= 3) {
                 auto vertex(shape->get_vertices()[vertex_id]);
                 ImGui::Text("{%.3f, %.3f}", vertex.x, vertex.y);
+                ++vertex_id;
             }
         }
 
