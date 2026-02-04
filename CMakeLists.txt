@@ -9,6 +9,8 @@ project(Physics2D
 
 set(CMAKE_DEBUG_POSTFIX d)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 
 add_library(compiler_flags INTERFACE)
 target_compile_features(compiler_flags INTERFACE cxx_std_17)
@@ -22,14 +24,29 @@ target_compile_options(compiler_flags INTERFACE
   "$<${msvc_cxx}:$<BUILD_INTERFACE:-W3>>"
 )
 
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+#list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 # FetchContent_Declare(
 #     SDL2
 #     URL https://github.com/libsdl-org/SDL/archive/refs/tags/release-2.30.7.tar.gz
 # )
 # FetchContent_MakeAvailable(SDL2)
-find_package(SDL2 REQUIRED)
-find_package(SDL2_gfx REQUIRED)
+#find_package(SDL2 REQUIRED)
+#find_package(SDL2_gfx REQUIRED)
+
+set(SDL2_DIR ${CMAKE_CURRENT_SOURCE_DIR}/SDL2)
+add_subdirectory(${SDL2_DIR} EXCLUDE_FROM_ALL)
+
+set(SDL2_GFX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/SDL2_gfx)
+add_library(SDL2_gfx STATIC
+    ${SDL2_GFX_DIR}/SDL2_gfxPrimitives.c
+    ${SDL2_GFX_DIR}/SDL2_imageFilter.c
+    ${SDL2_GFX_DIR}/SDL2_rotozoom.c
+)
+target_link_libraries(SDL2_gfx PUBLIC ${SDL2_LIBRARIES})
+target_include_directories(SDL2_gfx PUBLIC ${SDL2_GFX_DIR} ${SDL2_DIR}/include)  
+
+set(SDL_IMAGE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/SDL_image)
+add_subdirectory(${SDL_IMAGE_DIR} EXCLUDE_FROM_ALL)
 
 add_library(imgui STATIC
     imgui/imgui.cpp
@@ -42,7 +59,7 @@ add_library(imgui STATIC
 )
 
 target_link_libraries(imgui PUBLIC ${SDL2_LIBRARIES})
-target_include_directories(imgui PUBLIC imgui)
+target_include_directories(imgui PUBLIC imgui ${SDL2_DIR}/include)
 
 add_library(implot STATIC
     implot/implot.cpp
@@ -98,7 +115,7 @@ set_target_properties(physics2d PROPERTIES
     DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX}
 )
 
-target_link_libraries(physics2d PUBLIC SDL2::SDL2 SDL2::SDL2main SDL2::GFX imgui implot compiler_flags)
+target_link_libraries(physics2d PUBLIC SDL2::SDL2 SDL2::SDL2main SDL2_image::SDL2_image SDL2_gfx imgui implot compiler_flags)
 
 # add_subdirectory(src)
 add_subdirectory(tests)
