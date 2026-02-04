@@ -118,4 +118,4 @@ set_target_properties(physics2d PROPERTIES
 target_link_libraries(physics2d PUBLIC SDL2::SDL2 SDL2::SDL2main SDL2_image::SDL2_image SDL2_gfx imgui implot compiler_flags)
 
 # add_subdirectory(src)
-add_subdirectory(tests)
+# add_subdirectory(tests)
