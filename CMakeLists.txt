@@ -7,21 +7,18 @@ project(Physics2D
     LANGUAGES C CXX
 )
 
-set(CMAKE_DEBUG_POSTFIX d)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 
 add_library(compiler_flags INTERFACE)
 target_compile_features(compiler_flags INTERFACE cxx_std_17)
-
-# add compiler warning flags just when building this project via
-# the BUILD_INTERFACE genex
-set(gcc_like_cxx "$<COMPILE_LANG_AND_ID:CXX,ARMClang,AppleClang,Clang,GNU,LCC>")
-set(msvc_cxx "$<COMPILE_LANG_AND_ID:CXX,MSVC>")
 target_compile_options(compiler_flags INTERFACE
-  "$<${gcc_like_cxx}:$<BUILD_INTERFACE:-g;-O3;-Wall;-Wextra;-Wshadow;-Wformat=2;-Wunused>>"
-  "$<${msvc_cxx}:$<BUILD_INTERFACE:-W3>>"
+    "-Wall" "-Wextra" "-Wunused" "-O3"
+    "$<$<CONFIG:DEBUG>:-g;-O0>"
+)
+target_compile_definitions(compiler_flags INTERFACE
+    $<$<CONFIG:DEBUG>:DEBUG>
 )
 
 #list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
@@ -112,10 +109,34 @@ add_executable(physics2d ${PHYSICS2D_SOURCES})
 set_target_properties(physics2d PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED YES
-    DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX}
 )
 
 target_link_libraries(physics2d PUBLIC SDL2::SDL2 SDL2::SDL2main SDL2_image::SDL2_image SDL2_gfx imgui implot compiler_flags)
 
 # add_subdirectory(src)
 # add_subdirectory(tests)
+
+## Custom "PHONY" targets
+
+add_custom_target(cln
+    COMMENT "Removing target ${PROJECT_NAME} executable..."
+    COMMAND ${CMAKE_COMMAND} -E rm -f
+        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/physics2d${CMAKE_EXECUTABLE_SUFFIX}
+)
+
+add_custom_target(run
+    COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/physics2d${CMAKE_EXECUTABLE_SUFFIX}
+    DEPENDS physics2d
+)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+find_program(GDB_EXECUTABLE gdb)
+add_custom_target(gdb
+    COMMAND ${GDB_EXECUTABLE} 
+        --args
+        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/physics2d${CMAKE_EXECUTABLE_SUFFIX}
+        $ENV{ARGS}
+    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+    DEPENDS physics2d
+)
+endif()
