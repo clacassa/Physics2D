@@ -300,9 +300,9 @@ double RigidBody::p_energy(double gravity) const {
 }
 
 void RigidBody::draw(SDL_Renderer* renderer) {
-    if (!track.empty()) {
-        if (track.back() != m_pos) {
-            track.clear();
+    if (!trail.empty()) {
+        if (trail.back() != m_pos) {
+            trail.clear();
         }
     }
 
@@ -376,23 +376,23 @@ void RigidBody::draw(SDL_Renderer* renderer) {
 #endif
 }
 
-void RigidBody::draw_trace(SDL_Renderer* renderer, bool update_trace) {
-    if (max_track_length > 0) {
+void RigidBody::draw_trail(SDL_Renderer* renderer, bool update_trace) {
+    if (max_trail_length > 0) {
         if (update_trace) {
-            if (track.size() == max_track_length) {
-                track.pop_front();
+            if (trail.size() == max_trail_length) {
+                trail.pop_front();
             }
-            if (track.size() < max_track_length) {
-                track.push_back(m_pos);
+            if (trail.size() < max_trail_length) {
+                trail.push_back(m_pos);
             }
         }
 
-        if (track.size() > 1) {
-            for (size_t i(0); i < track.size() - 1; ++i) {
-                int alpha(255.0 / track.size() * i);
+        if (trail.size() > 1) {
+            for (size_t i(0); i < trail.size() - 1; ++i) {
+                int alpha(255.0 / trail.size() * i);
                 SDL_SetRenderDrawColor(renderer, 255, 0, 0, alpha);
                 // render_circle_fill(renderer, point.x, point.y, 1 / (double)RENDER_SCALE);
-                render_line(renderer, track[i], track[i + 1]);
+                render_line(renderer, trail[i], trail[i + 1]);
             }
         }
     }

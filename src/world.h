@@ -42,6 +42,7 @@ public:
     bool focus_on_position(Vector2 p);
     bool focus_at(const int index);
     bool focus_body(const RigidBody* body);
+    void set_body_trail(const unsigned id, const bool enable);
 
     inline size_t get_focus() const { return (focus >= 0 ? focus : 0); }
     RigidBody* get_focused_body() const;
@@ -83,6 +84,7 @@ private:
     std::vector<RigidBody*> m_bodies;
     unsigned body_count;
     int focus;
+    std::vector<unsigned> m_trail_register_id;
 
     std::vector<Manifold*> m_contacts;
     std::vector<DistanceInfo*> m_proxys;

@@ -63,7 +63,7 @@ public:
     double p_energy(double gravity) const;
 
     void draw(SDL_Renderer* renderer);
-    void draw_trace(SDL_Renderer* renderer, bool update_trace);
+    void draw_trail(SDL_Renderer* renderer, bool update_trace);
     void draw_bounding_box(SDL_Renderer* renderer);
     void draw_com(SDL_Renderer* renderer);
     void draw_forces(SDL_Renderer* renderer) const;
@@ -92,7 +92,7 @@ public:
     inline Shape* get_shape() const { return m_shape; }
     inline ShapeType get_shape_type() const { return m_shape->get_type(); }
     inline unsigned get_id() const { return m_id; }
-    inline auto get_pos_curve() const { return track; }
+    inline auto get_pos_curve() const { return trail; }
 
     void handle_wall_collisions();
 
@@ -126,8 +126,8 @@ protected:
 
     Shape* m_shape;
 
-    size_t max_track_length = 2e3;
-    std::deque<Vector2> track;
+    size_t max_trail_length = 2e3;
+    std::deque<Vector2> trail;
 
     SDL_Color m_color;
 

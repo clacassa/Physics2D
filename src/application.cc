@@ -17,6 +17,7 @@
 #include "control.h"
 #include "render.h"
 #include "vector2.h"
+#include "transform2.h"
 #include "config.h"
 
 constexpr unsigned sim_substeps(20);
@@ -323,37 +324,49 @@ void Application::parse_keybd_event(SDL_Event& keybd_event) {
         case SDLK_UP:
             {
                 RigidBody* body(m_world.get_focused_body());
-                body->move({0, DIV / 5});
+                if (body) {
+                    body->move({0, DIV / 5});
+                }
             }
             break;
         case SDLK_DOWN:
             {
                 RigidBody* body(m_world.get_focused_body());
-                body->move({0, -DIV / 5});
+                if (body) {
+                    body->move({0, -DIV / 5});
+                }
             }
             break;
         case SDLK_LEFT:
             {
                 RigidBody* body(m_world.get_focused_body());
-                body->move({-DIV / 5, 0});
+                if (body) {
+                    body->move({-DIV / 5, 0});
+                }
             }
             break;
         case SDLK_RIGHT:
             {
                 RigidBody* body(m_world.get_focused_body());
-                body->move({DIV / 5, 0});
+                if (body) {
+                    body->move({DIV / 5, 0});
+                }
             }
             break;
         case SDLK_x:
             {
                 RigidBody* body(m_world.get_focused_body());
-                body->rotate(deg2rad(-5));
+                if (body) {
+                    body->rotate(deg2rad(-5));
+                }
             }
             break;
         case SDLK_z:
             {
                 RigidBody* body(m_world.get_focused_body());
-                body->rotate(deg2rad(5));
+                if (body) {
+                    body->rotate(deg2rad(5));
+                }
             }
             break;
         case SDLK_h:
@@ -679,6 +692,8 @@ void Application::demo_rigidbody() {
 }
 
 void Application::demo_double_pendulum() {
+    const double arm_length(3.0);
+    // System 1
     RigidBodyDef body_def;
     body_def.position = {SCENE_WIDTH * 0.5, SCENE_HEIGHT * 0.5};
     body_def.type = STATIC;
@@ -686,20 +701,38 @@ void Application::demo_double_pendulum() {
     Polygon anchor_box(create_box(0.5, 0.25));
     RigidBody* anchor(m_world.add_body(body_def, anchor_box));
 
-    body_def.position = anchor->get_p() + Vector2(3, 0);
+    body_def.position = anchor->get_p() + vector2_x * arm_length;
     body_def.type = DYNAMIC;
     body_def.enabled = true;
     Circle circle(0.2);
     RigidBody* body_1(m_world.add_body(body_def, circle));
-    body_def.position = anchor->get_p() + Vector2(3, 3);
+    body_def.position = anchor->get_p() + vector2_xy * arm_length;
     RigidBody* body_2(m_world.add_body(body_def, circle));
 
     m_world.add_spring(anchor->get_p(), body_1->get_p(), Spring::UNDAMPED, spring_stiffness_infinite);
     m_world.add_spring(body_1->get_p(), body_2->get_p(), Spring::UNDAMPED, spring_stiffness_infinite);
 
+    // System 2
+    body_def.position = anchor->get_p() + vector2_x * 4 * arm_length;
+    body_def.type = STATIC;
+    body_def.enabled = false;
+    RigidBody* anchor_2(m_world.add_body(body_def, anchor_box));
+
+    body_def.position = anchor_2->get_p() + vector2_x * arm_length;
+    body_def.type = DYNAMIC;
+    body_def.enabled = true;
+    RigidBody* body_2_1(m_world.add_body(body_def, circle));
+    body_def.position = anchor_2->get_p() + transform2((vector2_xy * arm_length), vector2_zero, deg2rad(0.1));
+    RigidBody* body_2_2(m_world.add_body(body_def, circle));
+
+    m_world.add_spring(anchor_2->get_p(), body_2_1->get_p(), Spring::UNDAMPED, spring_stiffness_infinite);
+    m_world.add_spring(body_2_1->get_p(), body_2_2->get_p(), Spring::UNDAMPED, spring_stiffness_infinite);
+
     m_world.disable_walls();
-    m_world.focus_at(2);
+    m_world.focus_body(body_2);
     body_id_changed = 1;
+    m_world.set_body_trail(body_2->get_id(), true);
+    m_world.set_body_trail(body_2_2->get_id(), true);
     m_world.set_gravity(g);
     m_settings.enable_gravity = 1;
     m_settings.draw_body_trajectory = 1;
@@ -836,7 +869,7 @@ void Application::show_main_overlay(const float avg_fps) {
             ImGuiWindowFlags_NoInputs);
 
     // Top left corner
-    const float pad(10.0);
+    const float pad(5.0);
     const ImGuiViewport* viewport(ImGui::GetMainViewport());
     ImVec2 work_pos(viewport->WorkPos);
     ImVec2 window_pos(work_pos.x + pad, work_pos.y + pad);
@@ -845,11 +878,21 @@ void Application::show_main_overlay(const float avg_fps) {
     flags |= ImGuiWindowFlags_NoMove;
     bool p_open(true);
     ImGui::Begin("Main overlay", &p_open, flags);
-    ImGui::Text("Average FPS (cap %.1u) : %.1d", SCREEN_FPS, int(avg_fps));
-    ImGui::Text("Delta time : %.1f ms", frame_time);
-    ImGui::Text("Freq : %.1f Hz", sim_substeps * avg_fps);
-    ImGui::Text("Time step : %.4f ms", time_step);
-    ImGui::Text("Steps : %.1u", sim_substeps);
+    ImGui::Text("Average FPS (cap %.1u) : %.1d"
+            "\nDelta time : %.1f ms"
+            "\nFreq : %.f Hz"
+            "\nTime step : %.4f ms"
+            "\nSteps : %.1u", 
+            SCREEN_FPS, int(avg_fps),
+            frame_time,
+            sim_substeps * avg_fps,
+            time_step,
+            sim_substeps
+    );
+    // ImGui::Text("Delta time : %.1f ms", frame_time);
+    // ImGui::Text("Freq : %.1f Hz", sim_substeps * avg_fps);
+    // ImGui::Text("Time step : %.4f ms", time_step);
+    // ImGui::Text("Steps : %.1u", sim_substeps);
     ImVec4 color((!m_ctrl.simulation.running), (m_ctrl.simulation.running), 0.3, 1);
     ImGui::TextColored(color, (m_ctrl.simulation.running ? "RUNNING" : "PAUSED"));
     const float offset(ImGui::GetWindowHeight() + pad);

@@ -146,7 +146,16 @@ void World::render(SDL_Renderer* renderer, bool running, Settings& settings) {
     if (body_count > 0 && focus >= 0) {
         m_bodies[focus]->colorize(focus_color);
         if (settings.draw_body_trajectory) {
-            m_bodies[focus]->draw_trace(renderer, running);
+            m_bodies[focus]->draw_trail(renderer, running);
+        }
+    }
+    for (auto id : m_trail_register_id) {
+        if (id == focus) {
+            continue;
+        }
+        RigidBody* body(get_body(id));
+        if (body) {
+            body->draw_trail(renderer, running);
         }
     }
 
@@ -264,6 +273,7 @@ void World::destroy_body(RigidBody* body) {
     }
 
     if (idx >= 0) {
+        set_body_trail(body->get_id(), false);
         delete body;
         m_bodies.erase(m_bodies.begin() + idx);
         --body_count;
@@ -281,6 +291,7 @@ void World::destroy_all() {
     m_bodies.clear();
     body_count = 0;
     focus = -1;
+    m_trail_register_id.clear();
 
     destroy_contacts();
     destroy_proxys();
@@ -410,6 +421,22 @@ bool World::focus_body(const RigidBody* body) {
         }
     }
     return focus_changed;
+}
+
+void World::set_body_trail(const unsigned id, const bool enable) {
+    RigidBody* body(get_body(id));
+    if (body) {
+        if (enable) {
+            m_trail_register_id.push_back(body->get_id());
+        }else {
+            for (auto& i : m_trail_register_id) {
+                if (i == id) {
+                    m_trail_register_id.erase(m_trail_register_id.begin() + i);
+                    break;
+                }
+            }
+        }
+    }
 }
 
 RigidBody* World::get_focused_body() const {
